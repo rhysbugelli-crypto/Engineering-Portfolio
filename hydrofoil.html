@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hydrofoil — Rhys Engineering Portfolio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300&family=Rajdhani:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0e0f11; --accent: #00c8ff;
+    --text: #c8d4dc; --muted: #5a6a78;
+    --border: rgba(200,212,220,0.1);
+    --amber: #f59e0b;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font-family: 'Rajdhani', sans-serif; min-height: 100vh; }
+
+  nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 1.1rem 3rem;
+    background: rgba(14,15,17,0.92); backdrop-filter: blur(16px);
+    border-bottom: 1px solid var(--border);
+  }
+  .nav-logo { font-family: 'Share Tech Mono', monospace; font-size: 0.82rem; color: var(--accent); letter-spacing: 0.14em; text-decoration: none; }
+  .nav-logo span { color: var(--muted); margin: 0 0.4em; }
+  .nav-links { display: flex; gap: 2rem; list-style: none; }
+  .nav-links a { font-family: 'Share Tech Mono', monospace; font-size: 0.7rem; letter-spacing: 0.1em; color: var(--muted); text-decoration: none; text-transform: uppercase; transition: color 0.2s; }
+  .nav-links a:hover, .nav-links a.active { color: var(--text); }
+
+  .hero {
+    padding: 9rem 3rem 5rem;
+    border-bottom: 1px solid var(--border);
+    display: grid; grid-template-columns: 1fr auto; gap: 3rem; align-items: end;
+    max-width: 1100px; margin: 0 auto;
+    opacity: 0; animation: fadeUp 0.6s forwards 0.1s;
+  }
+  .hero-kicker { font-family: 'Share Tech Mono', monospace; font-size: 0.68rem; letter-spacing: 0.22em; color: var(--muted); text-transform: uppercase; margin-bottom: 1.4rem; }
+  .hero-kicker span { color: var(--accent); margin-right: 1em; }
+  h1 { font-family: 'Cormorant Garamond', serif; font-weight: 300; font-size: clamp(3.5rem, 6vw, 6rem); line-height: 0.95; letter-spacing: -0.02em; margin-bottom: 1.8rem; }
+  h1 em { font-style: italic; color: var(--accent); }
+  .hero-intro { font-size: 1.05rem; font-weight: 300; color: var(--muted); line-height: 1.85; max-width: 520px; }
+  .hero-tags { display: flex; flex-direction: column; gap: 0.55rem; }
+  .tag { font-family: 'Share Tech Mono', monospace; font-size: 0.62rem; letter-spacing: 0.14em; color: var(--muted); text-transform: uppercase; padding: 0.5rem 0.9rem; border: 1px solid var(--border); white-space: nowrap; }
+  .tag.wip { color: var(--amber); border-color: rgba(245,158,11,0.3); }
+
+  .wip-banner {
+    max-width: 1100px; margin: 0 auto;
+    padding: 1.2rem 3rem;
+    display: flex; align-items: center; gap: 1.2rem;
+    border-bottom: 1px solid rgba(245,158,11,0.2);
+    background: rgba(245,158,11,0.04);
+    opacity: 0; animation: fadeUp 0.6s forwards 0.3s;
+  }
+  .wip-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--amber); box-shadow: 0 0 8px var(--amber); flex-shrink: 0; animation: pulse 2s ease-in-out infinite; }
+  .wip-text { font-family: 'Share Tech Mono', monospace; font-size: 0.68rem; letter-spacing: 0.18em; color: rgba(245,158,11,0.7); text-transform: uppercase; }
+
+  .bottom-nav {
+    max-width: 1100px; margin: 0 auto; padding: 2.2rem 3rem;
+    border-top: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center;
+    position: fixed; bottom: 0; left: 0; right: 0;
+    background: rgba(14,15,17,0.92); backdrop-filter: blur(16px);
+  }
+  .btn-nav { font-family: 'Share Tech Mono', monospace; font-size: 0.7rem; letter-spacing: 0.1em; color: var(--muted); text-decoration: none; text-transform: uppercase; display: flex; align-items: center; gap: 0.7rem; transition: color 0.2s, gap 0.2s; }
+  .btn-nav:hover { color: var(--text); gap: 1.2rem; }
+
+  @media (max-width: 700px) {
+    nav, .wip-banner, .hero, .bottom-nav { padding-left: 1.5rem; padding-right: 1.5rem; }
+    .hero { grid-template-columns: 1fr; padding-top: 7rem; }
+    .nav-links { gap: 1rem; }
+  }
+
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+</style>
+</head>
+<body>
+
+<nav>
+  <a href="index.html" class="nav-logo">RB <span>/</span> PORTFOLIO</a>
+  <ul class="nav-links">
+    <li><a href="summer-plane.html">Summer Plane</a></li>
+    <li><a href="spring-plane.html">Spring Plane</a></li>
+    <li><a href="hydrofoil.html" class="active">Hydrofoil</a></li>
+    <li><a href="thrust-vectoring.html">Thrust Vector</a></li>
+  </ul>
+</nav>
+
+<section class="hero">
+  <div>
+    <p class="hero-kicker"><span>03 / 04</span> Marine Hydrodynamics</p>
+    <h1>Hydro<em>foil</em></h1>
+    <p class="hero-intro">
+      A hydrodynamic foil design project for high-speed marine applications. Currently in progress.
+    </p>
+  </div>
+  <div class="hero-tags">
+    <div class="tag wip">In Progress</div>
+    <div class="tag">Marine</div>
+    <div class="tag">Hydrodynamics</div>
+    <div class="tag">Foil Design</div>
+  </div>
+</section>
+
+<div class="wip-banner">
+  <div class="wip-dot"></div>
+  <span class="wip-text">Project in progress — content coming soon</span>
+</div>
+
+<div class="bottom-nav">
+  <a href="spring-plane.html" class="btn-nav">← Spring Plane</a>
+  <a href="thrust-vectoring.html" class="btn-nav">Thrust Vectoring →</a>
+</div>
+
+</body>
+</html>
