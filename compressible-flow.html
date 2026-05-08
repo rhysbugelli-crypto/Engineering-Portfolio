@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Compressible Flow Calculator — RB Portfolio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300&family=Rajdhani:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0e0f11; --surface: #13161a; --accent: #00c8ff;
+    --text: #c8d4dc; --muted: #5a6a78; --border: rgba(200,212,220,0.1);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font-family: 'Rajdhani', sans-serif; min-height: 100vh; }
+
+  nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 1.1rem 3rem;
+    background: rgba(14,15,17,0.92); backdrop-filter: blur(16px);
+    border-bottom: 1px solid var(--border);
+  }
+  .nav-logo { font-family: 'Share Tech Mono', monospace; font-size: 0.82rem; color: var(--accent); letter-spacing: 0.14em; text-decoration: none; }
+  .nav-logo span { color: var(--muted); margin: 0 0.4em; }
+  .nav-links { display: flex; gap: 2rem; list-style: none; }
+  .nav-links a { font-family: 'Share Tech Mono', monospace; font-size: 0.7rem; letter-spacing: 0.1em; color: var(--muted); text-decoration: none; text-transform: uppercase; transition: color 0.2s; }
+  .nav-links a:hover, .nav-links a.active { color: var(--text); }
+
+  .hero {
+    padding: 9rem 3rem 5rem;
+    border-bottom: 1px solid var(--border);
+    display: grid; grid-template-columns: 1fr auto; gap: 3rem; align-items: end;
+    max-width: 1100px; margin: 0 auto;
+    opacity: 0; animation: fadeUp 0.6s forwards 0.1s;
+  }
+  .hero-kicker { font-family: 'Share Tech Mono', monospace; font-size: 0.68rem; letter-spacing: 0.22em; color: var(--muted); text-transform: uppercase; margin-bottom: 1.4rem; }
+  .hero-kicker span { color: var(--accent); margin-right: 1em; }
+  h1 { font-family: 'Cormorant Garamond', serif; font-weight: 300; font-size: clamp(3rem, 6vw, 5.5rem); line-height: 0.95; letter-spacing: -0.02em; margin-bottom: 1.8rem; }
+  h1 em { font-style: italic; color: var(--accent); }
+  .hero-intro { font-size: 1.05rem; font-weight: 300; color: var(--muted); line-height: 1.85; max-width: 520px; }
+  .hero-tags { display: flex; flex-direction: column; gap: 0.55rem; }
+  .tag { font-family: 'Share Tech Mono', monospace; font-size: 0.62rem; letter-spacing: 0.14em; color: var(--muted); text-transform: uppercase; padding: 0.5rem 0.9rem; border: 1px solid var(--border); white-space: nowrap; }
+  .tag.hi { color: var(--accent); border-color: rgba(0,200,255,0.22); }
+
+  /* MAIN CONTENT */
+  .content {
+    max-width: 1100px; margin: 0 auto;
+    padding: 5rem 3rem 6rem;
+    display: grid; grid-template-columns: 1fr 1fr; gap: 5rem;
+    align-items: start;
+    opacity: 0; animation: fadeUp 0.7s forwards 0.4s;
+  }
+
+  .about h2 { font-family: 'Cormorant Garamond', serif; font-weight: 300; font-size: 1.85rem; line-height: 1.15; margin-bottom: 1.2rem; }
+  .about h2 em { font-style: italic; color: var(--accent); }
+  .about p { font-size: 0.97rem; font-weight: 300; color: var(--muted); line-height: 1.88; margin-bottom: 1rem; }
+  .about p:last-child { margin-bottom: 0; }
+
+  .features { display: flex; flex-direction: column; gap: 0; }
+  .feature-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.65rem; letter-spacing: 0.22em;
+    color: var(--accent); text-transform: uppercase;
+    margin-bottom: 1.2rem;
+    display: flex; align-items: center; gap: 1rem;
+  }
+  .feature-label::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+  .feature-item {
+    padding: 1rem 0;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 1rem;
+  }
+  .feature-item:first-of-type { border-top: 1px solid var(--border); }
+  .feature-dot { width: 4px; height: 4px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
+  .feature-text { font-family: 'Share Tech Mono', monospace; font-size: 0.68rem; letter-spacing: 0.1em; color: var(--muted); text-transform: uppercase; }
+
+  /* CTA */
+  .cta-row {
+    max-width: 1100px; margin: 0 auto;
+    padding: 0 3rem 6rem;
+    opacity: 0; animation: fadeUp 0.7s forwards 0.6s;
+  }
+  .cta-btn {
+    display: inline-flex; align-items: center; gap: 1rem;
+    padding: 1.2rem 2.5rem;
+    border: 1px solid rgba(0,200,255,0.4);
+    background: rgba(0,200,255,0.05);
+    color: var(--accent);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.78rem; letter-spacing: 0.18em;
+    text-transform: uppercase; text-decoration: none;
+    transition: background 0.2s, gap 0.2s;
+  }
+  .cta-btn:hover { background: rgba(0,200,255,0.1); gap: 1.6rem; }
+  .cta-arrow { font-size: 1.1rem; }
+
+  .bottom-nav {
+    max-width: 1100px; margin: 0 auto; padding: 2.2rem 3rem;
+    border-top: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .btn-nav { font-family: 'Share Tech Mono', monospace; font-size: 0.7rem; letter-spacing: 0.1em; color: var(--muted); text-decoration: none; text-transform: uppercase; display: flex; align-items: center; gap: 0.7rem; transition: color 0.2s, gap 0.2s; }
+  .btn-nav:hover { color: var(--text); gap: 1.2rem; }
+
+  @media (max-width: 860px) {
+    .content { grid-template-columns: 1fr; gap: 3rem; }
+    nav, .hero, .content, .cta-row, .bottom-nav { padding-left: 1.5rem; padding-right: 1.5rem; }
+    .hero { grid-template-columns: 1fr; padding-top: 7rem; }
+    .nav-links { gap: 1rem; }
+  }
+
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+</style>
+</head>
+<body>
+
+<nav>
+  <a href="index.html" class="nav-logo">RB <span>/</span> PORTFOLIO</a>
+  <ul class="nav-links">
+    <li><a href="summer-plane.html">Summer Plane</a></li>
+    <li><a href="spring-plane.html">Spring Plane</a></li>
+    <li><a href="hydrofoil.html">Hydrofoil</a></li>
+    <li><a href="thrust-vectoring.html">Thrust Vector</a></li>
+    <li><a href="compressible-flow.html" class="active">Comp. Flow</a></li>
+  </ul>
+</nav>
+
+<section class="hero">
+  <div>
+    <p class="hero-kicker"><span>05 / 05</span> Computational Tool</p>
+    <h1>Compressible<br><em>Flow</em><br>Calculator</h1>
+    <p class="hero-intro">
+      An interactive calculator for compressible flow analysis, covering isentropic relations, normal and oblique shocks, Prandtl-Meyer expansion, and nozzle flow — with live plots and regime visualisation.
+    </p>
+  </div>
+  <div class="hero-tags">
+    <div class="tag hi">Complete</div>
+    <div class="tag">Compressible Flow</div>
+    <div class="tag">JavaScript</div>
+    <div class="tag">Plotly</div>
+  </div>
+</section>
+
+<div class="content">
+  <div class="about">
+    <h2>About the <em>Tool</em></h2>
+    <p>Built to support compressible aerodynamics coursework, this calculator implements the core relations from gas dynamics — from subsonic isentropic flow through to supersonic shock analysis and expansion fans.</p>
+    <p>All calculations run client-side in the browser with no dependencies beyond Plotly for the flow visualisations. Input any Mach number or flow condition and the tool returns the full set of associated parameters instantly.</p>
+  </div>
+  <div class="features">
+    <div class="feature-label">Capabilities</div>
+    <div class="feature-item"><div class="feature-dot"></div><span class="feature-text">Isentropic flow relations</span></div>
+    <div class="feature-item"><div class="feature-dot"></div><span class="feature-text">Normal shock relations</span></div>
+    <div class="feature-item"><div class="feature-dot"></div><span class="feature-text">Oblique shock analysis</span></div>
+    <div class="feature-item"><div class="feature-dot"></div><span class="feature-text">Prandtl-Meyer expansion</span></div>
+    <div class="feature-item"><div class="feature-dot"></div><span class="feature-text">Converging-diverging nozzle flow</span></div>
+    <div class="feature-item"><div class="feature-dot"></div><span class="feature-text">Live Plotly visualisations</span></div>
+  </div>
+</div>
+
+<div class="cta-row">
+  <a href="shock_calculator_v5.html" class="cta-btn">
+    Open Calculator <span class="cta-arrow">→</span>
+  </a>
+</div>
+
+<div class="bottom-nav">
+  <a href="thrust-vectoring.html" class="btn-nav">← Thrust Vectoring</a>
+  <a href="index.html" class="btn-nav">All Projects →</a>
+</div>
+
+</body>
+</html>

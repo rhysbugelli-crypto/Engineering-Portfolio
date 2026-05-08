@@ -1,0 +1,2993 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Compressible Flow Calculator</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.26.0/plotly.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600&display=swap" rel="stylesheet"/>
+  <style>
+    /* ══════════════════════════════════════════
+       SEMANTIC DESIGN TOKENS
+       ══════════════════════════════════════════ */
+    :root {
+      /* Surfaces */
+      --bg:        #111827;
+      --panel:     #1f2937;
+      --surface:   #273449;
+      --surface-2: #334155;
+      --border:    #4b5563;
+
+      /* Semantic colours */
+      --accent:    #38bdf8;   /* primary action / main numeric output */
+      --accent-2:  #f59e0b;   /* amber — warnings / transitions */
+      --success:   #34d399;   /* green — design / perfectly expanded */
+      --danger:    #f87171;   /* red — shocks / invalid */
+      --warning:   #fbbf24;   /* yellow — choking / special condition */
+
+      /* Text */
+      --text:      #f3f7ff;
+      --muted:     #b7c0d0;   /* form labels, important secondary text */
+      --subtle:    #8fa0b7;   /* helper text, output labels, placeholders */
+
+      --mono:      'JetBrains Mono', monospace;
+
+      /* Legacy colour aliases so JS colour constants still resolve */
+      --blue:   #38bdf8;
+      --orange: #f59e0b;
+      --green:  #34d399;
+      --red:    #f87171;
+      --yellow: #fbbf24;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      line-height: 1.5;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    /* ── LAYOUT ── */
+    .layout { display: flex; min-height: 100vh; }
+
+    /* ── SIDEBAR ── */
+    .sidebar {
+      width: 220px;
+      flex-shrink: 0;
+      background: var(--panel);
+      border-right: 1px solid var(--border);
+      padding: 24px 0;
+      display: flex;
+      flex-direction: column;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+    }
+    .sidebar h2 {
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 0.62rem;
+      text-transform: uppercase;
+      letter-spacing: .18em;
+      padding: 0 20px 16px;
+      margin: 0 0 8px;
+      border-bottom: 1px solid var(--border);
+    }
+    .tab {
+      display: block;
+      padding: 10px 20px;
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 0.88rem;
+      cursor: pointer;
+      transition: background .15s, color .15s;
+      border-left: 3px solid transparent;
+    }
+    .tab:hover { background: rgba(255,255,255,.05); color: var(--text); }
+    .tab.active { background: rgba(91,184,245,.10); color: var(--accent); border-left-color: var(--accent); }
+
+    /* ── MAIN CONTENT ── */
+    .main-content { flex: 1; overflow-x: hidden; }
+
+    /* ── PAGES ── */
+    .page { display: none; }
+    .page.active { display: block; }
+
+    /* ── SHARED PAGE WRAPPER ── */
+    .pg {
+      max-width: 1040px;
+      margin: 0 auto;
+      padding: 32px 32px 72px;
+    }
+    .pg-title {
+      color: #fff;
+      font-size: 1.55rem;
+      font-weight: 700;
+      letter-spacing: -.02em;
+      margin: 0 0 4px;
+    }
+    .pg-sub {
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      margin-bottom: 28px;
+    }
+
+    /* ── CARD ── */
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 22px 20px;
+      margin-bottom: 16px;
+    }
+    .card-title {
+      font-family: var(--mono);
+      font-size: 0.64rem;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 16px;
+    }
+
+    /* ── FORM FIELDS ── */
+    .field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; }
+    .field label {
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      color: var(--muted);
+      width: auto;
+      font-weight: normal;
+      display: block;
+    }
+    .field label em { color: var(--accent); font-style: normal; }
+    .field input[type=number],
+    .field select {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 0.86rem;
+      padding: 8px 10px;
+      outline: none;
+      transition: border-color .15s;
+      width: 100%;
+    }
+    .field input[type=number]:focus,
+    .field select:focus { border-color: var(--accent); }
+
+    /* Stacked form-group */
+    .form-group {
+      margin-bottom: 14px;
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 6px;
+    }
+    .form-group label {
+      font-family: var(--mono);
+      font-size: 0.78rem;
+      color: var(--muted);
+      min-width: 0;
+      font-weight: normal;
+    }
+    .form-group select,
+    .form-group input[type=number] {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 0.86rem;
+      padding: 8px 10px;
+      outline: none;
+      transition: border-color .15s;
+      width: 100%;
+    }
+    .form-group select:focus,
+    .form-group input[type=number]:focus { border-color: var(--accent); }
+
+    /* ── BUTTON ── */
+    button, .cd-btn {
+      background: var(--accent);
+      color: #000;
+      border: none;
+      border-radius: 6px;
+      font-weight: 700;
+      font-size: 0.86rem;
+      padding: 9px 20px;
+      cursor: pointer;
+      letter-spacing: .04em;
+      transition: opacity .15s, transform .1s;
+      margin-top: 4px;
+    }
+    button:hover, .cd-btn:hover { opacity: .88; transform: translateY(-1px); }
+    button:active, .cd-btn:active { transform: translateY(0); }
+
+    /* Focus states (5.2) */
+    input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
+    button:focus-visible, .tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+    /* ── RESULTS BOX ── */
+    .results {
+      margin-top: 12px;
+      padding: 14px 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-family: var(--mono);
+      font-size: 0.83rem;
+      color: var(--text);
+      line-height: 1.8;
+    }
+    .results strong { color: var(--accent); font-weight: 600; }
+
+    /* ── OUTPUT TILE GRID ── */
+    .out-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      gap: 12px;
+      margin-top: 14px;
+    }
+    .out-tile {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 14px;
+      min-height: 62px;
+    }
+    /* Primary output highlight */
+    .out-tile.primary {
+      border-color: rgba(56,189,248,0.55);
+      background: linear-gradient(180deg, rgba(56,189,248,0.09), var(--surface));
+    }
+    .out-tile.warning { border-color: rgba(251,191,36,0.6); }
+    .out-tile.danger  { border-color: rgba(248,113,113,0.6); }
+    .out-tile.success { border-color: rgba(52,211,153,0.6); }
+
+    .out-label {
+      font-family: var(--mono);
+      font-size: 0.68rem;
+      color: var(--subtle);
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+    .out-value {
+      font-family: var(--mono);
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--accent);
+      min-height: 1.2em;
+    }
+    .out-value.placeholder-val { color: var(--subtle); font-weight: 400; font-size: 0.86rem; }
+
+    /* ── STAT TILES ── */
+    .cd-stat-tile {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 11px 14px;
+    }
+    .cd-stat-label {
+      font-family: var(--mono);
+      font-size: 0.62rem;
+      color: var(--muted);
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+    .cd-stat-value {
+      font-family: var(--mono);
+      font-size: 0.94rem;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    /* CD nozzle compat aliases */
+    .cd-field { display: flex; flex-direction: column; gap: 5px; }
+    .cd-field-label { font-family: var(--mono); font-size: 0.72rem; color: var(--muted); }
+    .cd-input {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
+      color: var(--text); font-family: var(--mono); font-size: 0.86rem;
+      padding: 8px 10px; outline: none; transition: border-color .15s; width: 100%;
+    }
+    .cd-input:focus { border-color: var(--accent); }
+
+    /* ── DIVIDER ── */
+    hr.div { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
+
+    /* ── FRACTIONS ── */
+    .frac {
+      display: inline-flex; flex-direction: column; align-items: center;
+      vertical-align: middle; font-size: 1rem; line-height: 1.1; margin: 0 2px;
+    }
+    .frac .frac-num { border-bottom: 1.5px solid currentColor; padding-bottom: 1px; text-align: center; }
+    .frac .frac-den { padding-top: 1px; text-align: center; }
+    .frac.frac-sm { font-size: 0.82rem; }
+
+    /* ── REGIME CARDS (Nozzle Regimes page) ── */
+    .regime-card {
+      background: var(--panel);
+      border-left: 5px solid var(--border);
+      border-radius: 8px;
+      border-top: 1px solid var(--border);
+      border-right: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      padding: 20px 24px;
+      margin: 14px auto;
+      max-width: 820px;
+    }
+    .regime-header { display: flex; align-items: center; gap: 14px; margin-bottom: 10px; }
+    .regime-number {
+      background: var(--muted); color: #fff; font-weight: bold; font-size: 1rem;
+      width: 32px; height: 32px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .regime-title { font-size: 1.05rem; font-weight: bold; color: var(--text); }
+    .regime-condition { font-size: 0.85rem; color: var(--muted); margin-top: 2px; font-family: Georgia, serif; }
+    .regime-card p { margin: 8px 0; color: #b8c4d8; line-height: 1.6; }
+    .regime-note {
+      background: rgba(245,216,90,.08); border-left: 3px solid var(--warning);
+      padding: 8px 12px; margin: 10px 0; border-radius: 4px;
+      font-size: 0.88rem; color: #c8b870;
+    }
+    .diagram-placeholder {
+      margin-top: 14px; padding: 18px;
+      border: 2px dashed var(--border); border-radius: 6px;
+      text-align: center; color: var(--muted); font-size: 0.88rem;
+      background: var(--surface);
+    }
+
+    /* ── MISC ── */
+    .placeholder { text-align: center; color: var(--muted); margin-top: 80px; font-size: 1.1rem; }
+    h1 { text-align: center; color: var(--text); }
+    h2 { color: var(--text); font-size: 1.05rem; margin: 0 0 12px; }
+    section {
+      background: var(--panel);
+      padding: 20px;
+      margin: 16px auto;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      max-width: 780px;
+    }
+    p { color: #b8c4d8; }
+    a { color: var(--accent); }
+
+    /* ── 2.5 Two-column calc layout ── */
+    .calc-layout {
+      display: grid;
+      grid-template-columns: minmax(280px, 360px) 1fr;
+      gap: 18px;
+      align-items: start;
+    }
+
+    /* ── 3.2 Helper text ── */
+    .helper-text {
+      font-size: 0.78rem;
+      color: var(--subtle);
+      margin: 4px 0 14px;
+      line-height: 1.5;
+    }
+
+    /* ── 3.3 Input group headers ── */
+    .input-group-label {
+      font-family: var(--mono);
+      font-size: 0.62rem;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      color: var(--subtle);
+      margin: 16px 0 8px;
+      padding-bottom: 5px;
+      border-bottom: 1px solid var(--border);
+    }
+    .input-group-label:first-child { margin-top: 0; }
+
+    /* ── 4.1 Interpretation card ── */
+    .interpretation-card {
+      background: rgba(56,189,248,0.07);
+      border: 1px solid rgba(56,189,248,0.30);
+      border-radius: 10px;
+      padding: 14px 16px;
+      margin-bottom: 14px;
+    }
+    .interpretation-label {
+      font-family: var(--mono);
+      font-size: 0.66rem;
+      color: var(--subtle);
+      text-transform: uppercase;
+      letter-spacing: .12em;
+      margin-bottom: 5px;
+    }
+    .interpretation-text {
+      color: var(--text);
+      font-size: 0.94rem;
+      line-height: 1.55;
+    }
+
+    /* ── 6.1 Warning / error boxes ── */
+    .warning-box {
+      background: rgba(251,191,36,0.09);
+      border: 1px solid rgba(251,191,36,0.45);
+      color: var(--text);
+      border-radius: 8px;
+      padding: 11px 14px;
+      margin-top: 10px;
+      font-size: 0.88rem;
+      line-height: 1.5;
+    }
+    .error-box {
+      background: rgba(248,113,113,0.09);
+      border: 1px solid rgba(248,113,113,0.45);
+      color: var(--text);
+      border-radius: 8px;
+      padding: 11px 14px;
+      margin-top: 10px;
+      font-size: 0.88rem;
+      line-height: 1.5;
+    }
+
+    /* ── 6.2 Collapsible equation panels ── */
+    .equation-panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 14px;
+      margin-top: 16px;
+    }
+    .equation-panel summary {
+      cursor: pointer;
+      font-family: var(--mono);
+      color: var(--accent);
+      font-size: 0.82rem;
+      user-select: none;
+      list-style: none;
+    }
+    .equation-panel summary::before { content: '▶  '; font-size: 0.65rem; }
+    .equation-panel[open] summary::before { content: '▼  '; }
+    .equation-content {
+      margin-top: 12px;
+      color: var(--muted);
+      line-height: 1.7;
+      font-size: 0.88rem;
+      font-family: var(--mono);
+    }
+    .equation-content p { margin: 4px 0; color: var(--muted); }
+
+    /* ── 1.4 Regime colour classes ── */
+    .regime-subsonic  { color: var(--accent); }
+    .regime-choked    { color: var(--warning); }
+    .regime-shock     { color: var(--danger); }
+    .regime-expanded  { color: var(--success); }
+    .regime-warn      { color: var(--accent-2); }
+    .regime-muted     { color: var(--subtle); }
+
+    /* ── 5.1 Mobile sidebar ── */
+    @media (max-width: 760px) {
+      .layout { flex-direction: column; }
+      .sidebar {
+        width: 100%; height: auto;
+        position: sticky; top: 0; z-index: 10;
+        padding: 8px; flex-direction: row;
+        overflow-x: auto; border-right: none;
+        border-bottom: 1px solid var(--border);
+      }
+      .sidebar h2 { display: none; }
+      .tab {
+        white-space: nowrap;
+        border-left: none;
+        border-bottom: 3px solid transparent;
+        padding: 10px 14px;
+      }
+      .tab.active { border-left-color: transparent; border-bottom-color: var(--accent); }
+      .pg { padding: 22px 16px 48px; }
+      .calc-layout { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 850px) {
+      .calc-layout { grid-template-columns: 1fr; }
+    }
+
+    /* ── Nozzle Regimes sweep section (Priority 5) ── */
+    .sweep-section {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 20px;
+      margin: 16px auto;
+    }
+    .sweep-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    @media (max-width: 760px) { .sweep-grid { grid-template-columns: repeat(2,1fr); } }
+    .sweep-label {
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      color: var(--muted);
+      display: block;
+      margin-bottom: 4px;
+    }
+    .sweep-label .accent-var { color: var(--accent); }
+    .sweep-input {
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 0.85rem;
+      padding: 7px 10px;
+      outline: none;
+      transition: border-color .15s;
+    }
+    .sweep-input:focus { border-color: var(--accent); }
+    .sweep-readout-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 4px;
+    }
+    .sweep-small-label { font-family: var(--mono); font-size: 0.70rem; color: var(--subtle); }
+    .sweep-readout     { font-family: var(--mono); font-size: 0.85rem; font-weight: 600; color: var(--text); }
+    .sweep-plot-label  { font-family: var(--mono); font-size: 0.66rem; letter-spacing: .15em; text-transform: uppercase; color: var(--subtle); margin-bottom: 8px; }
+    .sweep-range {
+      -webkit-appearance: none; appearance: none;
+      width: 100%; height: 4px; border-radius: 2px;
+      background: var(--border); outline: none; cursor: pointer; margin-bottom: 2px;
+    }
+    .sweep-range::-webkit-slider-thumb {
+      -webkit-appearance: none; width: 16px; height: 16px;
+      border-radius: 50%; background: var(--accent);
+      border: 2px solid var(--bg); cursor: pointer;
+    }
+
+    /* ── Secondary: input-known tile (S4) ── */
+    .out-tile.input-known {
+      border-color: rgba(245,158,11,0.65);
+      background: linear-gradient(180deg, rgba(245,158,11,0.08), var(--surface));
+    }
+    .out-tile.input-known .out-label::after {
+      content: "  GIVEN";
+      color: var(--accent-2);
+      font-size: 0.56rem;
+      letter-spacing: .08em;
+    }
+    /* ── Secondary: secondary button (S2, S3) ── */
+    .secondary-btn {
+      background: transparent;
+      color: var(--accent);
+      border: 1px solid rgba(56,189,248,0.45);
+      border-radius: 6px;
+      font-family: var(--font-ui, Arial, sans-serif);
+      font-size: 0.82rem;
+      padding: 7px 14px;
+      cursor: pointer;
+      transition: background .15s;
+      margin-top: 6px;
+    }
+    .secondary-btn:hover { background: rgba(56,189,248,0.08); }
+    .btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+
+    /* ══ C1: Section headings ══ */
+    .section-heading {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 34px 0 14px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid rgba(183,192,208,0.18);
+    }
+    .section-heading:first-of-type { margin-top: 0; }
+    .section-heading::before {
+      content: "";
+      width: 4px;
+      height: 22px;
+      border-radius: 999px;
+      background: var(--accent);
+      box-shadow: 0 0 10px rgba(56,189,248,0.35);
+      flex-shrink: 0;
+    }
+    .section-heading-title {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: -0.01em;
+    }
+    .section-heading-sub {
+      font-family: var(--mono);
+      font-size: 0.67rem;
+      color: var(--subtle);
+      letter-spacing: .07em;
+      text-transform: uppercase;
+      margin-top: 2px;
+    }
+
+    /* ══ C2: Utility layout classes ══ */
+    .two-col-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 14px;
+    }
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 10px;
+    }
+    .regime-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 18px;
+      border-radius: 10px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      margin-bottom: 10px;
+    }
+    .small-section-label {
+      font-family: var(--mono);
+      font-size: 0.65rem;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+      color: var(--subtle);
+      margin-bottom: 10px;
+    }
+    .plot-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 18px 18px 8px;
+      margin-bottom: 16px;
+    }
+
+    /* ══ C8: Regime group headings ══ */
+    .regime-group-heading {
+      margin: 32px auto 12px;
+      max-width: 860px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+    .regime-group-title {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .regime-group-sub {
+      font-family: var(--mono);
+      font-size: 0.68rem;
+      color: var(--subtle);
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      margin-top: 2px;
+    }
+
+    @media (max-width: 760px) {
+      .two-col-grid  { grid-template-columns: 1fr; }
+      .stat-grid     { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+      <h2>Compressible Flow</h2>
+      <a class="tab active" onclick="showPage('shock', this)">Shocks</a>
+      <a class="tab" onclick="showPage('rayleigh', this)">Rayleigh Flow</a>
+      <a class="tab" onclick="showPage('fanno', this)">Fanno Flow</a>
+      <a class="tab" onclick="showPage('pm', this)">Prandtl–Meyer</a>
+      <a class="tab" onclick="showPage('cdnozzle', this)">C–D Nozzle</a>
+      <a class="tab" onclick="showPage('cdregimes', this)">Nozzle Regimes</a>
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <div class="main-content">
+
+      <!-- PAGE: Shock Calculator -->
+      <div id="page-shock" class="page active">
+        <div class="pg">
+          <div class="pg-title">Normal &amp; Oblique Shock Calculator</div>
+          <div class="pg-sub">Inviscid · Steady · 1-D shock relations · Calorically perfect gas</div>
+
+          <!-- ── NORMAL SHOCK ── -->
+          <div class="section-heading">
+          <div>
+            <div class="section-heading-title">Normal Shock</div>
+            <div class="section-heading-sub">1-D stationary shock · upstream M₁ &gt; 1</div>
+          </div>
+        </div>
+          <div class="calc-layout" style="margin-bottom:28px;">
+            <!-- Inputs -->
+            <div class="card">
+              <div class="input-group-label">Known flow input</div>
+              <div class="form-group">
+                <label for="n-var">Known variable</label>
+                <select id="n-var" onchange="updateNormalLabel()">
+                  <option value="M1">Upstream Mach (M₁)</option>
+                  <option value="M2">Downstream Mach (M₂)</option>
+                  <option value="p">Pressure ratio (p₂/p₁)</option>
+                  <option value="rho">Density ratio (ρ₂/ρ₁)</option>
+                  <option value="T">Temperature ratio (T₂/T₁)</option>
+                  <option value="p0">Stag. pressure ratio (p₀₂/p₀₁)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label id="n-val-label" for="n-val">Value</label>
+                <input type="number" id="n-val" value="2.0" step="0.01">
+              </div>
+              <div class="input-group-label">Gas model</div>
+              <div class="form-group">
+                <label for="n-gamma">Specific heat ratio (γ)</label>
+                <input type="number" id="n-gamma" value="1.4" step="0.01">
+              </div>
+              <button onclick="computeNormal()">Compute Normal Shock</button>
+              <div class="btn-row">
+                <button class="secondary-btn" onclick="resetNormalDefaults()">Reset</button>
+                <button class="secondary-btn" onclick="copyNormalResults()">Copy Results</button>
+              </div>
+              <div id="normal-error" class="error-box" style="display:none"></div>
+            </div>
+            <!-- Outputs -->
+            <div>
+              <div class="interpretation-card">
+                <div class="interpretation-label">Interpretation</div>
+                <div id="normal-interpretation" class="interpretation-text">Enter a value and compute.</div>
+              </div>
+              <div class="out-grid" id="normal-results">
+                <div class="out-tile primary"><div class="out-label">Upstream Mach M₁</div><div class="out-value placeholder-val" id="nr-M1">—</div></div>
+                <div class="out-tile primary"><div class="out-label">Downstream Mach M₂</div><div class="out-value" id="nr-M2">—</div></div>
+                <div class="out-tile primary"><div class="out-label">Pressure ratio p₂/p₁</div><div class="out-value" id="nr-p">—</div></div>
+                <div class="out-tile"><div class="out-label">Density ratio ρ₂/ρ₁</div><div class="out-value" id="nr-rho">—</div></div>
+                <div class="out-tile"><div class="out-label">Temperature ratio T₂/T₁</div><div class="out-value" id="nr-T">—</div></div>
+                <div class="out-tile primary"><div class="out-label">Stag. pressure p₀₂/p₀₁</div><div class="out-value" id="nr-p0">—</div></div>
+              </div>
+              <details class="equation-panel">
+                <summary>Reference equations</summary>
+                <div class="equation-content">
+                  <p>M₂² = [1 + (γ−1)/2 · M₁²] / [γM₁² − (γ−1)/2]</p>
+                  <p>p₂/p₁ = 1 + 2γ/(γ+1) · (M₁²−1)</p>
+                  <p>ρ₂/ρ₁ = (γ+1)M₁² / [(γ−1)M₁²+2]</p>
+                  <p>T₂/T₁ = (p₂/p₁) / (ρ₂/ρ₁)</p>
+                  <p>p₀₂/p₀₁ = (p₂/p₁) · [(1+(γ−1)/2·M₂²) / (1+(γ−1)/2·M₁²)]^(γ/(γ−1))</p>
+                  <p style="margin-top:8px;color:var(--subtle);">Valid for M₁ > 1. Entropy increases; stagnation pressure decreases.</p>
+                </div>
+              </details>
+            </div>
+          </div>
+
+          <!-- ── OBLIQUE SHOCK ── -->
+          <div class="section-heading">
+          <div>
+            <div class="section-heading-title">Oblique Shock</div>
+            <div class="section-heading-sub">Attached shock · weak / strong β solutions</div>
+          </div>
+        </div>
+          <div class="calc-layout">
+            <!-- Inputs -->
+            <div class="card">
+              <div class="input-group-label">Shock configuration</div>
+              <div class="form-group">
+                <label for="o-shocktype">Solution branch</label>
+                <select id="o-shocktype">
+                  <option value="weak">Weak shock (physical default)</option>
+                  <option value="strong">Strong shock</option>
+                </select>
+              </div>
+              <p class="helper-text">Angles are in degrees. Attached shocks require θ below θ_max for the selected M₁ and γ.</p>
+              <div class="input-group-label">Two known inputs</div>
+              <div class="form-group">
+                <label for="o-var1">Input 1</label>
+                <select id="o-var1" onchange="updateObliqueOptions()">
+                  <option value="M1">Upstream Mach (M₁)</option>
+                  <option value="theta">Deflection angle (θ, deg)</option>
+                  <option value="beta">Shock angle (β, deg)</option>
+                  <option value="p">Pressure ratio (p₂/p₁)</option>
+                  <option value="T">Temperature ratio (T₂/T₁)</option>
+                  <option value="rho">Density ratio (ρ₂/ρ₁)</option>
+                  <option value="M2">Downstream Mach (M₂)</option>
+                </select>
+                <input type="number" id="o-val1" value="2.0" step="0.01">
+              </div>
+              <div class="form-group">
+                <label for="o-var2">Input 2</label>
+                <select id="o-var2">
+                  <option value="theta">Deflection angle (θ, deg)</option>
+                  <option value="beta">Shock angle (β, deg)</option>
+                  <option value="p">Pressure ratio (p₂/p₁)</option>
+                  <option value="T">Temperature ratio (T₂/T₁)</option>
+                  <option value="rho">Density ratio (ρ₂/ρ₁)</option>
+                  <option value="M2">Downstream Mach (M₂)</option>
+                </select>
+                <input type="number" id="o-val2" value="10.0" step="0.01">
+              </div>
+              <div class="input-group-label">Gas model</div>
+              <div class="form-group">
+                <label for="o-gamma">Specific heat ratio (γ)</label>
+                <input type="number" id="o-gamma" value="1.4" step="0.01">
+              </div>
+              <button onclick="computeOblique()">Compute Oblique Shock</button>
+              <div class="btn-row">
+                <button class="secondary-btn" onclick="resetObliqueDefaults()">Reset</button>
+                <button class="secondary-btn" onclick="copyObliqueResults()">Copy Results</button>
+              </div>
+              <div id="oblique-error" class="error-box" style="display:none"></div>
+            </div>
+            <!-- Outputs -->
+            <div>
+              <div class="interpretation-card">
+                <div class="interpretation-label">Interpretation</div>
+                <div id="oblique-interpretation" class="interpretation-text">Enter two known values and compute.</div>
+              </div>
+              <div class="out-grid" id="oblique-results">
+                <div class="out-tile"><div class="out-label">Upstream Mach M₁</div><div class="out-value" id="or-M1">—</div></div>
+                <div class="out-tile"><div class="out-label">Mach angle μ</div><div class="out-value" id="or-mu">—</div></div>
+                <div class="out-tile primary"><div class="out-label">Shock angle β</div><div class="out-value" id="or-beta">—</div></div>
+                <div class="out-tile primary"><div class="out-label">Deflection angle θ</div><div class="out-value" id="or-theta">—</div></div>
+                <div class="out-tile"><div class="out-label">Normal Mach M₁ₙ</div><div class="out-value" id="or-M1n">—</div></div>
+                <div class="out-tile primary"><div class="out-label">Downstream Mach M₂</div><div class="out-value" id="or-M2">—</div></div>
+                <div class="out-tile"><div class="out-label">Pressure ratio p₂/p₁</div><div class="out-value" id="or-p">—</div></div>
+                <div class="out-tile"><div class="out-label">Density ratio ρ₂/ρ₁</div><div class="out-value" id="or-rho">—</div></div>
+                <div class="out-tile"><div class="out-label">Temperature ratio T₂/T₁</div><div class="out-value" id="or-T">—</div></div>
+                <div class="out-tile"><div class="out-label">Stag. pressure p₀₂/p₀₁</div><div class="out-value" id="or-p0">—</div></div>
+              </div>
+              <details class="equation-panel">
+                <summary>Reference equations</summary>
+                <div class="equation-content">
+                  <p>tan(θ) = 2·cot(β)·(M₁²sin²β − 1) / [M₁²(γ + cos 2β) + 2]  ← θ-β-M relation</p>
+                  <p>M₁ₙ = M₁·sin(β)</p>
+                  <p>M₂ₙ from normal shock at M₁ₙ; then M₂ = M₂ₙ / sin(β − θ)</p>
+                  <p>All pressure/density/temperature ratios from normal shock using M₁ₙ</p>
+                  <p style="margin-top:8px;color:var(--subtle);">Weak solution: smaller β, usually supersonic downstream. Strong solution: larger β, subsonic downstream.</p>
+                </div>
+              </details>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PAGE: Rayleigh Flow -->
+      <div id="page-rayleigh" class="page">
+        <div class="pg">
+          <div class="pg-title">Rayleigh Flow Calculator</div>
+          <div class="pg-sub">Frictionless · Constant-area duct · Heat addition or removal</div>
+
+          <!-- Two-station -->
+          <div class="section-heading">
+          <div>
+            <div class="section-heading-title">Two-Station Ratios (M₁ → M₂)</div>
+            <div class="section-heading-sub">Constant-area heat addition or removal</div>
+          </div>
+        </div>
+          <div class="calc-layout" style="margin-bottom:28px;">
+            <div class="card">
+              <div class="input-group-label">Flow stations</div>
+              <div class="form-group"><label for="r-M1">Upstream Mach (M₁)</label><input type="number" id="r-M1" value="0.5" step="0.01"></div>
+              <div class="form-group"><label for="r-M2">Downstream Mach (M₂)</label><input type="number" id="r-M2" value="0.8" step="0.01"></div>
+              <div class="input-group-label">Gas model</div>
+              <div class="form-group"><label for="r-gamma">Specific heat ratio (γ)</label><input type="number" id="r-gamma" value="1.4" step="0.01"></div>
+              <button onclick="computeRayleigh()">Compute Rayleigh Flow</button>
+              <div class="btn-row">
+                <button class="secondary-btn" onclick="resetRayleighDefaults()">Reset</button>
+                <button class="secondary-btn" onclick="copyRayleighResults()">Copy Results</button>
+              </div>
+              <div id="rayleigh-error" class="error-box" style="display:none"></div>
+            </div>
+            <div>
+              <div class="interpretation-card">
+                <div class="interpretation-label">Interpretation</div>
+                <div id="rayleigh-interpretation" class="interpretation-text">Enter M₁ and M₂ and compute.</div>
+              </div>
+              <div class="out-grid" id="rayleigh-results">
+                <div class="out-tile primary"><div class="out-label">Pressure ratio p₂/p₁</div><div class="out-value" id="rr-p">—</div></div>
+                <div class="out-tile"><div class="out-label">Temperature ratio T₂/T₁</div><div class="out-value" id="rr-T">—</div></div>
+                <div class="out-tile"><div class="out-label">Density ratio ρ₂/ρ₁</div><div class="out-value" id="rr-rho">—</div></div>
+                <div class="out-tile primary"><div class="out-label">Stag. temp ratio T₀₂/T₀₁</div><div class="out-value" id="rr-T0">—</div></div>
+                <div class="out-tile primary"><div class="out-label">Stag. pressure p₀₂/p₀₁</div><div class="out-value" id="rr-p0">—</div></div>
+                <div class="out-tile primary"><div class="out-label">Heat addition q/h₀₁</div><div class="out-value" id="rr-q">—</div></div>
+              </div>
+              <details class="equation-panel">
+                <summary>Reference equations</summary>
+                <div class="equation-content">
+                  <p>p₂/p₁ = (1 + γM₁²) / (1 + γM₂²)</p>
+                  <p>T₂/T₁ = [M₂(1+γM₁²)]² / [M₁(1+γM₂²)]²</p>
+                  <p>T₀/T₀* = 2(γ+1)M²(1+(γ−1)/2·M²) / (1+γM²)²</p>
+                  <p>p₀/p₀* = [(γ+1)/(1+γM²)]·[(2/(γ+1))(1+(γ−1)/2·M²)]^(γ/(γ−1))</p>
+                  <p style="margin-top:8px;color:var(--subtle);">Both subsonic and supersonic flows drive toward M=1 with heat addition. Choking occurs at M=1.</p>
+                </div>
+              </details>
+            </div>
+          </div>
+
+          <!-- Star ratios -->
+          <div class="section-heading">
+          <div>
+            <div class="section-heading-title">Star (Sonic) Ratios at M</div>
+            <div class="section-heading-sub">Ratios relative to the Rayleigh sonic reference state</div>
+          </div>
+        </div>
+          <div class="calc-layout">
+            <div class="card">
+              <p class="helper-text">Ratios relative to the Rayleigh sonic reference state (M* = 1).</p>
+              <div class="form-group"><label for="rs-M">Mach number (M)</label><input type="number" id="rs-M" value="0.5" step="0.01"></div>
+              <div class="form-group"><label for="rs-gamma">Specific heat ratio (γ)</label><input type="number" id="rs-gamma" value="1.4" step="0.01"></div>
+              <button onclick="computeRayleighStar()">Compute Rayleigh Star</button>
+              <div id="rayleigh-star-error" class="error-box" style="display:none"></div>
+            </div>
+            <div class="out-grid" id="rayleigh-star-results" style="align-self:start;">
+              <div class="out-tile primary"><div class="out-label">p / p*</div><div class="out-value" id="rs-p">—</div></div>
+              <div class="out-tile"><div class="out-label">ρ / ρ*</div><div class="out-value" id="rs-rho">—</div></div>
+              <div class="out-tile"><div class="out-label">T / T*</div><div class="out-value" id="rs-T">—</div></div>
+              <div class="out-tile"><div class="out-label">u / u*</div><div class="out-value" id="rs-u">—</div></div>
+              <div class="out-tile primary"><div class="out-label">T₀ / T₀*</div><div class="out-value" id="rs-T0">—</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PAGE: Fanno Flow -->
+      <div id="page-fanno" class="page">
+        <div class="pg">
+          <div class="pg-title">Fanno Flow Calculator</div>
+          <div class="pg-sub">Adiabatic · Constant-area duct · Wall friction</div>
+
+          <!-- Two-station -->
+          <div class="section-heading">
+          <div>
+            <div class="section-heading-title">Two-Station Ratios (Mᵢ → Mₑ)</div>
+            <div class="section-heading-sub">Adiabatic frictional duct flow</div>
+          </div>
+        </div>
+          <div class="calc-layout" style="margin-bottom:28px;">
+            <div class="card">
+              <div class="input-group-label">Flow stations</div>
+              <div class="form-group"><label for="f-Mi">Inlet Mach (Mᵢ)</label><input type="number" id="f-Mi" value="0.5" step="0.01"></div>
+              <div class="form-group"><label for="f-Me">Exit Mach (Mₑ)</label><input type="number" id="f-Me" value="0.8" step="0.01"></div>
+              <div class="input-group-label">Gas model</div>
+              <div class="form-group"><label for="f-gamma">Specific heat ratio (γ)</label><input type="number" id="f-gamma" value="1.4" step="0.01"></div>
+              <button onclick="computeFanno()">Compute Fanno Flow</button>
+              <div class="btn-row">
+                <button class="secondary-btn" onclick="resetFannoDefaults()">Reset</button>
+                <button class="secondary-btn" onclick="copyFannoResults()">Copy Results</button>
+              </div>
+              <div id="fanno-error" class="error-box" style="display:none"></div>
+            </div>
+            <div>
+              <div class="interpretation-card">
+                <div class="interpretation-label">Interpretation</div>
+                <div id="fanno-interpretation" class="interpretation-text">Enter inlet and exit Mach and compute.</div>
+              </div>
+              <div class="out-grid" id="fanno-results">
+                <div class="out-tile"><div class="out-label">Temperature ratio Tₑ/Tᵢ</div><div class="out-value" id="fr-T">—</div></div>
+                <div class="out-tile primary"><div class="out-label">Pressure ratio pₑ/pᵢ</div><div class="out-value" id="fr-p">—</div></div>
+                <div class="out-tile"><div class="out-label">Density ratio ρₑ/ρᵢ</div><div class="out-value" id="fr-rho">—</div></div>
+                <div class="out-tile primary"><div class="out-label">Stag. pressure p₀ₑ/p₀ᵢ</div><div class="out-value" id="fr-p0">—</div></div>
+                <div class="out-tile primary"><div class="out-label">4λL/Dₕ (inlet to exit)</div><div class="out-value" id="fr-fL">—</div></div>
+              </div>
+              <details class="equation-panel">
+                <summary>Reference equations</summary>
+                <div class="equation-content">
+                  <p>Tₑ/Tᵢ = [1+(γ−1)/2·Mᵢ²] / [1+(γ−1)/2·Mₑ²]</p>
+                  <p>pₑ/pᵢ = (Mᵢ/Mₑ)·√(Tₑ/Tᵢ)</p>
+                  <p>ρₑ/ρᵢ = (Mᵢ/Mₑ) / √(Tₑ/Tᵢ)</p>
+                  <p>4λL/Dₕ = (1−Mᵢ²)/(γMᵢ²) + (γ+1)/(2γ)·ln[(γ+1)Mᵢ²/(2+(γ−1)Mᵢ²)] − (same for Mₑ)</p>
+                  <p style="margin-top:8px;color:var(--subtle);">Friction drives both subsonic and supersonic flows toward M=1 (choking). Stagnation temperature is constant; stagnation pressure decreases.</p>
+                </div>
+              </details>
+            </div>
+          </div>
+
+          <!-- Critical length -->
+          <div class="section-heading">
+          <div>
+            <div class="section-heading-title">Critical Pipe Length at M</div>
+            <div class="section-heading-sub">4λL*/Dₕ from this Mach to the choking point</div>
+          </div>
+        </div>
+          <div class="calc-layout">
+            <div class="card">
+              <p class="helper-text">4λL*/Dₕ is the non-dimensional pipe length from this Mach number to the choking point (M = 1).</p>
+              <div class="form-group"><label for="fl-M">Mach number (M)</label><input type="number" id="fl-M" value="0.5" step="0.01"></div>
+              <div class="form-group"><label for="fl-gamma">Specific heat ratio (γ)</label><input type="number" id="fl-gamma" value="1.4" step="0.01"></div>
+              <button onclick="computeFannoLength()">Compute Fanno Length</button>
+              <div id="fanno-len-error" class="error-box" style="display:none"></div>
+            </div>
+            <div class="out-grid" id="fanno-length-results" style="align-self:start;">
+              <div class="out-tile primary"><div class="out-label">4λL*/Dₕ to choking</div><div class="out-value" id="fl-fLstar">—</div></div>
+              <div class="out-tile"><div class="out-label">T / T*</div><div class="out-value" id="fl-T">—</div></div>
+              <div class="out-tile"><div class="out-label">p / p*</div><div class="out-value" id="fl-p">—</div></div>
+              <div class="out-tile"><div class="out-label">ρ / ρ*</div><div class="out-value" id="fl-rho">—</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PAGE: CD Nozzle -->
+      <div id="page-cdnozzle" class="page">
+        <div class="pg">
+          <div class="pg-title">C–D Nozzle Calculator</div>
+          <div class="pg-sub">Steady · 1-D · Inviscid · Adiabatic — isentropic except across shocks</div>
+          <p class="helper-text">Assumes steady, 1-D, inviscid, adiabatic nozzle flow. Normal shocks are treated as discontinuities. T₀ is required only for mass flow calculation.</p>
+
+          <!-- ── INPUTS ── -->
+          <div class="card" style="margin-bottom:16px;">
+            <div class="input-group-label">Reservoir conditions</div>
+            <div class="two-col-grid">
+              <div class="cd-field">
+                <label class="cd-field-label"><span style="color:var(--accent);">p₀</span> — Stagnation pressure (Pa)</label>
+                <input type="number" id="cd-p0" value="300000" step="1000" class="cd-input">
+              </div>
+              <div class="cd-field">
+                <label class="cd-field-label"><span style="color:var(--accent);">T₀</span> — Stagnation temperature (K)</label>
+                <input type="number" id="cd-T0" value="300" step="1" class="cd-input">
+              </div>
+            </div>
+            <div class="input-group-label" style="margin-top:14px;">Geometry</div>
+            <div class="two-col-grid">
+              <div class="cd-field">
+                <label class="cd-field-label"><span style="color:var(--accent);">Aₜ</span> — Throat area (m²)</label>
+                <input type="number" id="cd-At" value="1.0" step="0.1" class="cd-input">
+              </div>
+              <div class="cd-field">
+                <label class="cd-field-label"><span style="color:var(--accent);">Aₑ</span> — Exit area (m²)</label>
+                <input type="number" id="cd-Ae" value="2.5" step="0.1" class="cd-input">
+              </div>
+            </div>
+            <div class="input-group-label" style="margin-top:14px;">Back pressure</div>
+            <div class="two-col-grid">
+              <div class="cd-field">
+                <label class="cd-field-label"><span style="color:var(--accent);">pₐ</span> — Ambient pressure (Pa)</label>
+                <input type="number" id="cd-pa" value="200000" step="1000" class="cd-input">
+              </div>
+            </div>
+            <div class="input-group-label" style="margin-top:14px;">Gas model</div>
+            <div class="two-col-grid">
+              <div class="cd-field">
+                <label class="cd-field-label"><span style="color:var(--accent);">γ</span> — Ratio of specific heats</label>
+                <input type="number" id="cd-gamma" value="1.4" step="0.01" class="cd-input">
+              </div>
+              <div class="cd-field">
+                <label class="cd-field-label"><span style="color:var(--accent);">R</span> — Gas constant (J/kg·K)</label>
+                <input type="number" id="cd-R" value="287" step="1" class="cd-input">
+              </div>
+            </div>
+            <button onclick="runCDNozzle()" class="cd-btn" style="margin-top:16px;">Analyze C–D Nozzle</button>
+            <div class="btn-row" style="margin-top:8px;">
+              <button class="secondary-btn" onclick="resetCDDefaults()">Reset</button>
+              <button class="secondary-btn" onclick="copyCDResults()">Copy Results</button>
+            </div>
+            <div id="cd-error" class="error-box" style="display:none"></div>
+          </div>
+
+          <!-- ── REGIME (shown first per 2.6) ── -->
+          <div id="cd-regime-section" style="display:none;margin-bottom:16px;">
+            <div id="cd-viz-regime-bar" class="regime-bar">
+              <div id="cd-viz-dot" style="width:10px;height:10px;border-radius:50%;background:var(--subtle);flex-shrink:0;transition:background .25s;"></div>
+              <div>
+                <div style="font-family:var(--mono);font-size:0.63rem;letter-spacing:.15em;text-transform:uppercase;color:var(--subtle);">Flow Regime</div>
+                <div id="cd-viz-regime-text" style="font-size:1.05rem;font-weight:700;color:var(--text);transition:color .25s;">—</div>
+              </div>
+            </div>
+            <!-- Interpretation -->
+            <div class="interpretation-card" id="cd-interpretation-card" style="margin-bottom:10px;">
+              <div class="interpretation-label">Interpretation</div>
+              <div id="cd-regime-interpretation" class="interpretation-text">—</div>
+            </div>
+            <!-- Critical ratio stats -->
+            <div class="stat-grid">
+              <div class="cd-stat-tile"><div class="cd-stat-label">pₐ / p₀</div><div class="cd-stat-value" id="cd-stat-pa">—</div></div>
+              <div class="cd-stat-tile"><div class="cd-stat-label">pCH / p₀</div><div class="cd-stat-value" id="cd-stat-pch">—</div></div>
+              <div class="cd-stat-tile"><div class="cd-stat-label">pNS / p₀</div><div class="cd-stat-value" id="cd-stat-pns">—</div></div>
+              <div class="cd-stat-tile"><div class="cd-stat-label">pSJ / p₀</div><div class="cd-stat-value" id="cd-stat-psj">—</div></div>
+            </div>
+          </div>
+
+          <!-- ── EXIT CONDITIONS ── -->
+          <div id="cd-outputs-section" style="display:none;margin-bottom:16px;">
+            <div class="small-section-label">Exit Conditions</div>
+            <div id="cd-outputs-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;"></div>
+          </div>
+
+          <!-- ── NOZZLE DIAGRAM ── -->
+          <div id="cd-diagram-section" class="plot-card" style="display:none;">
+            <div class="small-section-label">Nozzle Geometry &amp; Flow Features</div>
+            <div style="position:relative;width:100%;height:180px;">
+              <svg id="cd-nozzle-svg" viewBox="0 0 800 180" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;"></svg>
+              <canvas id="cd-particle-canvas" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;"></canvas>
+            </div>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;">
+              <div style="font-family:var(--mono);font-size:0.63rem;color:var(--subtle);">Particles coloured by local Mach number · Speed scaled to M(x)</div>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <label for="cd-anim-toggle" style="font-family:var(--mono);font-size:0.72rem;color:var(--subtle);cursor:pointer;">Flow animation</label>
+                <label style="position:relative;width:38px;height:20px;display:inline-block;">
+                  <input type="checkbox" id="cd-anim-toggle" onchange="cdToggleAnim(this.checked)" style="opacity:0;width:0;height:0;">
+                  <div id="cd-toggle-track" style="position:absolute;inset:0;background:var(--border);border-radius:10px;cursor:pointer;transition:background .2s;">
+                    <div id="cd-toggle-thumb" style="position:absolute;left:3px;top:3px;width:14px;height:14px;border-radius:50%;background:#fff;transition:transform .2s;"></div>
+                  </div>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <!-- ── MACH PLOT (before pressure per 2.6) ── -->
+          <div id="cd-mach-section" class="plot-card" style="display:none;">
+            <div class="small-section-label">Mach Number — M(x)</div>
+            <div id="cd-plot-mach" style="height:230px;"></div>
+          </div>
+
+          <!-- ── PRESSURE PLOT ── -->
+          <div id="cd-charts-section" class="plot-card" style="display:none;">
+            <div class="small-section-label">Static Pressure Ratio — p / p₀</div>
+            <div id="cd-plot-pressure" style="height:230px;"></div>
+          </div>
+
+          <!-- ── C-D nozzle reference equations ── -->
+          <details class="equation-panel">
+            <summary>Reference equations</summary>
+            <div class="equation-content">
+              <p>A/A* = (1/M)·[(2/(γ+1))·(1+(γ−1)/2·M²)]^((γ+1)/(2(γ−1)))  ← area-Mach relation</p>
+              <p>p/p₀ = [1+(γ−1)/2·M²]^(−γ/(γ−1))  ← isentropic pressure</p>
+              <p>ṁ* = p₀·Aₜ·√(γ/(RT₀))·[2/(γ+1)]^((γ+1)/(2(γ−1)))  ← choked mass flow</p>
+              <p>p*/p₀ = [2/(γ+1)]^(γ/(γ−1)) ≈ 0.5283 for γ=1.4  ← critical pressure ratio</p>
+              <p>pNS/p₀ = (pₑ/p₀)·(p₂/p₁)|NS  ← back pressure for normal shock at exit</p>
+              <p style="margin-top:8px;color:var(--subtle);">Diverging section acts as nozzle when choked, diffuser when subsonic. Shocks are treated as discontinuities.</p>
+            </div>
+          </details>
+        </div>
+      </div>
+
+      <!-- PAGE: Prandtl-Meyer Expansion -->
+      <div id="page-pm" class="page">
+        <div class="pg">
+          <div class="pg-title">Prandtl–Meyer Expansion</div>
+          <div class="pg-sub">Isentropic supersonic expansion around a convex corner · stagnation quantities conserved</div>
+          <p class="helper-text">Prandtl–Meyer expansions require supersonic flow (M &gt; 1). Stagnation pressure and temperature are conserved — only static quantities change.</p>
+
+          <!-- ── SECTION 1: Single-station lookup ── -->
+          <div class="section-heading">
+          <div>
+            <div class="section-heading-title">PM Function &amp; Mach Lookup</div>
+            <div class="section-heading-sub">Convert between Mach number and ν(M)</div>
+          </div>
+        </div>
+          <div class="calc-layout" style="margin-bottom:28px;">
+            <div class="card">
+              <div class="input-group-label">Known quantity</div>
+              <div class="form-group">
+                <label for="pm-input-type">Known quantity</label>
+                <select id="pm-input-type" onchange="updatePMInputLabel()">
+                  <option value="M">Mach number (M)</option>
+                  <option value="nu">PM angle ν(M) (degrees)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label id="pm-input-label" for="pm-input-val">Mach number (M)</label>
+                <input type="number" id="pm-input-val" value="2.0" step="0.01">
+              </div>
+              <div class="input-group-label">Gas model</div>
+              <div class="form-group">
+                <label for="pm-gamma1">Specific heat ratio (γ)</label>
+                <input type="number" id="pm-gamma1" value="1.4" step="0.01">
+              </div>
+              <button onclick="computePMSingle()">Compute</button>
+              <div class="btn-row">
+                <button class="secondary-btn" onclick="resetPMSingleDefaults()">Reset</button>
+                <button class="secondary-btn" onclick="copyPMSingleResults()">Copy Results</button>
+              </div>
+              <div id="pm-single-error" class="error-box" style="display:none"></div>
+            </div>
+            <div>
+              <div class="interpretation-card">
+                <div class="interpretation-label">Interpretation</div>
+                <div id="pm-single-interpretation" class="interpretation-text">Enter M or ν and compute.</div>
+              </div>
+              <div class="out-grid" id="pm-single-results">
+                <div class="out-tile primary"><div class="out-label">Mach number M</div><div class="out-value" id="pm1-M">—</div></div>
+                <div class="out-tile primary"><div class="out-label">PM angle ν(M)</div><div class="out-value" id="pm1-nu">—</div></div>
+                <div class="out-tile"><div class="out-label">Mach angle μ</div><div class="out-value" id="pm1-mu">—</div></div>
+                <div class="out-tile"><div class="out-label">p / p₀</div><div class="out-value" id="pm1-p">—</div></div>
+                <div class="out-tile"><div class="out-label">T / T₀</div><div class="out-value" id="pm1-T">—</div></div>
+                <div class="out-tile"><div class="out-label">Limiting ν(∞)</div><div class="out-value" id="pm1-nuinf">—</div></div>
+                <div class="out-tile primary"><div class="out-label">Max deflection θ<sub>max</sub></div><div class="out-value" id="pm1-tmax">—</div></div>
+              </div>
+              <details class="equation-panel">
+                <summary>Reference equations</summary>
+                <div class="equation-content">
+                  <p>ν(M) = √((γ+1)/(γ−1)) · arctan(√((γ−1)/(γ+1)·(M²−1))) − arctan(√(M²−1))</p>
+                  <p>ν(∞) = (√((γ+1)/(γ−1)) − 1) · π/2  ← maximum possible turning angle</p>
+                  <p>θmax = ν(∞) − ν(M)  ← remaining expansion from this state</p>
+                  <p>μ = arcsin(1/M)  ← Mach angle</p>
+                  <p style="margin-top:8px;color:var(--subtle);">Stagnation pressure and temperature are conserved. Use isentropic relations to find static quantities.</p>
+                </div>
+              </details>
+            </div>
+          </div>
+
+          <!-- ── SECTION 2: Two-station expansion ── -->
+          <div class="section-heading">
+          <div>
+            <div class="section-heading-title">Two-Station Expansion (Mᵤ → Mₐ)</div>
+            <div class="section-heading-sub">Isentropic turn through a Prandtl–Meyer fan</div>
+          </div>
+        </div>
+          <div class="calc-layout" style="margin-bottom:28px;">
+            <div class="card">
+              <p class="helper-text">Supply upstream Mach and one downstream quantity. The expansion fan turns the flow through deflection angle θ.</p>
+              <div class="input-group-label">Upstream condition</div>
+              <div class="form-group">
+                <label for="pm-Mu">Upstream Mach (Mᵤ)</label>
+                <input type="number" id="pm-Mu" value="2.0" step="0.01">
+              </div>
+              <div class="input-group-label">Second known</div>
+              <div class="form-group">
+                <label for="pm-input2-type">Known downstream quantity</label>
+                <select id="pm-input2-type" onchange="updatePMInput2Label()">
+                  <option value="theta">Deflection angle θ (degrees)</option>
+                  <option value="Md">Downstream Mach (Mₐ)</option>
+                  <option value="pd">Pressure ratio (pₐ/pᵤ)</option>
+                  <option value="Td">Temperature ratio (Tₐ/Tᵤ)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label id="pm-input2-label" for="pm-input2-val">Deflection angle θ (degrees)</label>
+                <input type="number" id="pm-input2-val" value="10.0" step="0.1">
+              </div>
+              <div class="input-group-label">Gas model</div>
+              <div class="form-group">
+                <label for="pm-gamma2">Specific heat ratio (γ)</label>
+                <input type="number" id="pm-gamma2" value="1.4" step="0.01">
+              </div>
+              <button onclick="computePMExpansion()">Compute PM Expansion</button>
+              <div class="btn-row">
+                <button class="secondary-btn" onclick="resetPMExpansionDefaults()">Reset</button>
+                <button class="secondary-btn" onclick="copyPMExpansionResults()">Copy Results</button>
+              </div>
+              <div id="pm-expansion-error" class="error-box" style="display:none"></div>
+            </div>
+            <div>
+              <div class="interpretation-card">
+                <div class="interpretation-label">Interpretation</div>
+                <div id="pm-expansion-interpretation" class="interpretation-text">Enter upstream Mach and a downstream quantity, then compute.</div>
+              </div>
+              <div class="out-grid" id="pm-expansion-results">
+                <div class="out-tile"><div class="out-label">Upstream Mach Mᵤ</div><div class="out-value" id="pm2-Mu">—</div></div>
+                <div class="out-tile"><div class="out-label">ν(Mᵤ)</div><div class="out-value" id="pm2-nuU">—</div></div>
+                <div class="out-tile"><div class="out-label">Mach angle μᵤ</div><div class="out-value" id="pm2-muU">—</div></div>
+                <div class="out-tile primary"><div class="out-label">Downstream Mach Mₐ</div><div class="out-value" id="pm2-Md">—</div></div>
+                <div class="out-tile"><div class="out-label">ν(Mₐ)</div><div class="out-value" id="pm2-nuD">—</div></div>
+                <div class="out-tile"><div class="out-label">Mach angle μₐ</div><div class="out-value" id="pm2-muD">—</div></div>
+                <div class="out-tile primary"><div class="out-label">Deflection angle θ</div><div class="out-value" id="pm2-theta">—</div></div>
+                <div class="out-tile primary"><div class="out-label">Pressure ratio pₐ/pᵤ</div><div class="out-value" id="pm2-p">—</div></div>
+                <div class="out-tile"><div class="out-label">Temperature ratio Tₐ/Tᵤ</div><div class="out-value" id="pm2-T">—</div></div>
+                <div class="out-tile"><div class="out-label">Density ratio ρₐ/ρᵤ</div><div class="out-value" id="pm2-rho">—</div></div>
+                <div class="out-tile"><div class="out-label">Velocity ratio Vₐ/Vᵤ</div><div class="out-value" id="pm2-V">—</div></div>
+              </div>
+              <details class="equation-panel">
+                <summary>Reference equations</summary>
+                <div class="equation-content">
+                  <p>ν(Mₐ) = ν(Mᵤ) + θ  ← total PM angle increases by the deflection</p>
+                  <p>pₐ/pᵤ = (p/p₀)|Mₐ / (p/p₀)|Mᵤ  ← isentropic, stagnation pressure conserved</p>
+                  <p>Tₐ/Tᵤ = (T/T₀)|Mₐ / (T/T₀)|Mᵤ</p>
+                  <p>Vₐ/Vᵤ = (Mₐ/Mᵤ) · √(Tₐ/Tᵤ)  ← from M = V/a and a ∝ √T</p>
+                  <p style="margin-top:8px;color:var(--subtle);">Pressure decreases and Mach increases through an expansion fan. No entropy change.</p>
+                </div>
+              </details>
+            </div>
+          </div>
+
+          <!-- ── SECTION 3: Limiting values ── -->
+          <div class="section-heading">
+          <div>
+            <div class="section-heading-title">Limiting Values</div>
+            <div class="section-heading-sub">Maximum turning angle before M → ∞</div>
+          </div>
+        </div>
+          <div class="calc-layout">
+            <div class="card">
+              <p class="helper-text">Maximum possible turning angle before the Prandtl–Meyer fan reaches M → ∞.</p>
+              <div class="form-group">
+                <label for="pm-Mlimit">Upstream Mach (Mᵤ) for θ<sub>max</sub></label>
+                <input type="number" id="pm-Mlimit" value="2.0" step="0.01">
+              </div>
+              <div class="form-group">
+                <label for="pm-gamma3">Specific heat ratio (γ)</label>
+                <input type="number" id="pm-gamma3" value="1.4" step="0.01">
+              </div>
+              <button onclick="computePMLimits()">Compute PM Limits</button>
+              <div class="btn-row">
+                <button class="secondary-btn" onclick="resetPMLimitsDefaults()">Reset</button>
+                <button class="secondary-btn" onclick="copyPMLimitsResults()">Copy Results</button>
+              </div>
+              <div id="pm-limits-error" class="error-box" style="display:none"></div>
+            </div>
+            <div class="out-grid" id="pm-limits-results" style="align-self:start;">
+              <div class="out-tile"><div class="out-label">Limiting angle ν(∞)</div><div class="out-value" id="pm3-nuinf">—</div></div>
+              <div class="out-tile"><div class="out-label">ν(Mᵤ)</div><div class="out-value" id="pm3-nuU">—</div></div>
+              <div class="out-tile primary"><div class="out-label">Max deflection θ<sub>max</sub></div><div class="out-value" id="pm3-tmax">—</div></div>
+            </div>
+          </div>
+
+
+          <details class="equation-panel">
+            <summary>Reference equations</summary>
+            <div class="equation-content">
+              <p>ν(∞) = (√((γ+1)/(γ−1)) − 1)·π/2  ← maximum PM angle as M → ∞</p>
+              <p>θmax = ν(∞) − ν(Mᵤ)  ← remaining expansion angle from this state</p>
+              <p style="margin-top:8px;color:var(--subtle);">θmax gives the maximum additional turning possible before the expansion fan reaches M → ∞. No real nozzle achieves this limit.</p>
+            </div>
+          </details>
+
+        </div>
+      </div>
+
+      <!-- PAGE: CD Nozzle Regimes -->
+      <div id="page-cdregimes" class="page">
+        <div class="pg" style="max-width:900px;">
+          <div class="pg-title">C–D Nozzle Flow Regimes</div>
+          <div class="pg-sub">How nozzle flow changes as ambient back pressure pₐ/p₀ is lowered</div>
+
+          <div class="card">
+            <p style="margin:0 0 12px;">The flow through a converging-diverging nozzle is governed by the ratio of ambient pressure to inlet stagnation pressure, p<sub>a</sub>/p<sub>0</sub>. As this ratio is progressively lowered, the nozzle passes through eight distinct flow regimes. Note that p<sub>a</sub> is the pressure of the surrounding environment the nozzle exhausts into — it is not the exit plane pressure of the gas itself, except in certain regimes where they happen to be equal.</p>
+            <p style="margin:0 0 16px;font-weight:600;color:var(--text);">Three critical pressure ratios define the boundaries between regimes:</p>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:16px;text-align:center;">
+              <div class="cd-stat-tile">
+                <div style="margin-bottom:8px;font-size:1.1rem;">
+                  <span class="frac"><span class="frac-num">p<sub>a</sub></span><span class="frac-den">p<sub>0</sub></span></span><sub style="font-size:0.75rem;vertical-align:sub;">sub</sub>
+                </div>
+                <div style="font-size:0.83rem;color:var(--muted);line-height:1.5;">Choking onset — the throat first reaches M = 1</div>
+              </div>
+              <div class="cd-stat-tile">
+                <div style="margin-bottom:8px;font-size:1.1rem;">
+                  <span class="frac"><span class="frac-num">p<sub>a</sub></span><span class="frac-den">p<sub>0</sub></span></span><sub style="font-size:0.75rem;vertical-align:sub;">NS</sub>
+                </div>
+                <div style="font-size:0.83rem;color:var(--muted);line-height:1.5;">Normal shock sits exactly at the nozzle exit</div>
+              </div>
+              <div class="cd-stat-tile">
+                <div style="margin-bottom:8px;font-size:1.1rem;">
+                  <span class="frac"><span class="frac-num">p<sub>a</sub></span><span class="frac-den">p<sub>0</sub></span></span><sub style="font-size:0.75rem;vertical-align:sub;">sup</sub>
+                </div>
+                <div style="font-size:0.83rem;color:var(--muted);line-height:1.5;">Design condition — perfectly expanded supersonic flow</div>
+              </div>
+            </div>
+            <p style="margin:0;color:var(--muted);font-size:0.9rem;text-align:center;">
+              Ordering: &nbsp;1 &gt;
+              <span class="frac frac-sm"><span class="frac-num">p<sub>a</sub></span><span class="frac-den">p<sub>0</sub></span></span><sub style="font-size:0.7rem;">sub</sub>
+              &nbsp;&gt;&nbsp;
+              <span class="frac frac-sm"><span class="frac-num">p<sub>a</sub></span><span class="frac-den">p<sub>0</sub></span></span><sub style="font-size:0.7rem;">NS</sub>
+              &nbsp;&gt;&nbsp;
+              <span class="frac frac-sm"><span class="frac-num">p<sub>a</sub></span><span class="frac-den">p<sub>0</sub></span></span><sub style="font-size:0.7rem;">sup</sub>
+              &nbsp;&gt; 0
+            </p>
+          </div>
+
+        <!-- Interactive Sweep Section -->
+        <section class="sweep-section">
+          <h2 style="color:var(--text);margin-bottom:8px;">Interactive Regime Explorer</h2>
+          <p class="helper-text">Set geometry and drag the slider to sweep pₐ/p₀ across all regimes. The nozzle diagram and plots update in real time.</p>
+
+          <div class="sweep-grid">
+            <div>
+              <label class="sweep-label"><span class="accent-var">p₀</span> — Stagnation pressure (Pa)</label>
+              <input class="sweep-input" type="number" id="sw-p0" value="300000" step="1000">
+            </div>
+            <div>
+              <label class="sweep-label"><span class="accent-var">Aₑ</span> — Exit area (m²)</label>
+              <input class="sweep-input" type="number" id="sw-Ae" value="2.5" step="0.1">
+            </div>
+            <div>
+              <label class="sweep-label"><span class="accent-var">Aₜ</span> — Throat area (m²)</label>
+              <input class="sweep-input" type="number" id="sw-At" value="1.0" step="0.1">
+            </div>
+            <div>
+              <label class="sweep-label"><span class="accent-var">γ</span> — Ratio of specific heats</label>
+              <input class="sweep-input" type="number" id="sw-gamma" value="1.4" step="0.01">
+            </div>
+          </div>
+
+          <div class="sweep-readout-row">
+            <span class="sweep-small-label">pₐ / p₀</span>
+            <span id="sw-readout" class="sweep-readout">—</span>
+          </div>
+          <div style="position:relative;height:24px;user-select:none;margin-bottom:4px;">
+            <div id="sw-regime-track" style="position:absolute;left:0;right:0;top:8px;bottom:8px;border-radius:4px;overflow:hidden;display:flex;"></div>
+            <div id="sw-track-needle" style="position:absolute;top:0;bottom:0;width:2px;background:#fff;border-radius:1px;pointer-events:none;transform:translateX(-50%);box-shadow:0 0 8px rgba(255,255,255,.6);left:66.7%;transition:left .05s linear;"></div>
+          </div>
+          <input class="sweep-range" type="range" id="sw-slider" min="0" max="1000" value="667"
+            oninput="onSweepRegimes(this.value)">
+          <div style="display:flex;justify-content:space-between;">
+            <span class="sweep-small-label">0</span>
+            <span class="sweep-small-label">p₀</span>
+          </div>
+
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-top:12px;margin-bottom:10px;">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <div id="sw-regime-dot" style="width:10px;height:10px;border-radius:50%;background:var(--subtle);flex-shrink:0;"></div>
+              <span id="sw-regime-text" style="font-family:var(--mono);font-size:0.9rem;font-weight:700;color:var(--text);">—</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <label for="sw-anim-toggle" style="font-family:var(--mono);font-size:0.72rem;color:var(--subtle);cursor:pointer;">Flow animation</label>
+              <label style="position:relative;width:38px;height:20px;display:inline-block;">
+                <input type="checkbox" id="sw-anim-toggle" onchange="swToggleAnim(this.checked)" style="opacity:0;width:0;height:0;">
+                <div id="sw-toggle-track" style="position:absolute;inset:0;background:var(--border);border-radius:10px;cursor:pointer;transition:background .2s;">
+                  <div id="sw-toggle-thumb" style="position:absolute;left:3px;top:3px;width:14px;height:14px;border-radius:50%;background:#fff;transition:transform .2s;"></div>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <div style="position:relative;width:100%;height:180px;margin-bottom:12px;">
+            <svg id="sw-nozzle-svg" viewBox="0 0 800 180" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;"></svg>
+            <canvas id="sw-particle-canvas" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;"></canvas>
+          </div>
+
+          <div style="margin-bottom:6px;">
+            <div class="sweep-plot-label">Static Pressure Ratio — p / p₀</div>
+            <div id="sw-plot-pressure" style="height:220px;"></div>
+          </div>
+          <div>
+            <div class="sweep-plot-label">Mach Number — M(x)</div>
+            <div id="sw-plot-mach" style="height:220px;"></div>
+          </div>
+        </section>
+
+        <!-- Regime cards -->
+        <div class="regime-group-heading">
+          <div class="regime-group-title">Unchoked / Subsonic Regimes</div>
+          <div class="regime-group-sub">Flow is stationary or subsonic through the entire nozzle.</div>
+        </div>
+        <div class="regime-card" style="border-left-color:#aaa;">
+          <div class="regime-header">
+            <span class="regime-number">1</span>
+            <div>
+              <div class="regime-title">No Flow</div>
+              <div class="regime-condition"><span class="frac frac-sm"><span class="frac-num">p<sub>a</sub></span><span class="frac-den">p<sub>0</sub></span></span> ≥ 1</div>
+            </div>
+          </div>
+          <p>When the ambient pressure equals or exceeds the stagnation pressure, there is no pressure gradient to drive flow. The gas is stationary throughout the nozzle.</p>
+          <div class="diagram-placeholder">[ Mach &amp; pressure distribution diagrams — coming soon ]</div>
+        </div>
+
+        <div class="regime-card" style="border-left-color:#4caf50;">
+          <div class="regime-header">
+            <span class="regime-number" style="background:#4caf50;">2</span>
+            <div>
+              <div class="regime-title">Isentropic Subsonic Flow (Not Choked)</div>
+              <div class="regime-condition"><span class="frac frac-sm"><span class="frac-num">p<sub>a</sub></span><span class="frac-den">p<sub>0</sub></span></span><sub style="font-size:0.7rem;">sub</sub> &lt; <span class="frac frac-sm"><span class="frac-num">p<sub>a</sub></span><span class="frac-den">p<sub>0</sub></span></span> &lt; 1</div>
+            </div>
+          </div>
+          <p>Lowering p<sub>a</sub> below p<sub>0</sub> creates a pressure gradient that drives subsonic flow. The Mach number increases through the converging section, reaches a local maximum at the throat (M &lt; 1), then <em>decreases</em> through the diverging section — which acts as a subsonic diffuser. The flow is entirely isentropic and the exit pressure matches ambient: p<sub>e</sub> = p<sub>a</sub>.</p>
+          <div class="diagram-placeholder">[ Mach &amp; pressure distribution diagrams — coming soon ]</div>
+        </div>
+
+        <div class="regime-card" style="border-left-color:#2196f3;">
+          <div class="regime-header">
+            <span class="regime-number" style="background:#2196f3;">3</span>
+            <div>
+              <div class="regime-title">Choked Subsonic Flow</div>
+              <div class="regime-condition"><span class="frac frac-sm"><span class="frac-num">p<sub>a</sub></span><span class="frac-den">p<sub>0</sub></span></span> = <span class="frac frac-sm"><span class="frac-num">p<sub>a</sub></span><span class="frac-den">p<sub>0</sub></span></span><sub style="font-size:0.7rem;">sub</sub></div>
+            </div>
+          </div>
+          <p>The pressure ratio is just low enough to choke the flow at the throat: M = 1 there. The flow accelerates to sonic conditions at the throat, then decelerates subsonically through the diverging section. The flow is still entirely isentropic and p<sub>e</sub> = p<sub>a</sub>.</p>
+          <div class="regime-note">From this point onward, further reductions in p<sub>a</sub>/p<sub>0</sub> do not change anything upstream of the throat. The converging section and throat are locked — all subsequent changes occur in the diverging section or beyond the exit plane.</div>
+          <div class="diagram-placeholder">[ Mach &amp; pressure distribution diagrams — coming soon ]</div>
+        </div>
+
+        <div class="regime-group-heading">
+          <div class="regime-group-title">Internal Shock Regimes</div>
+          <div class="regime-group-sub">Throat is choked · normal shock exists inside or at the exit plane.</div>
+        </div>
+        <div class="regime-card" style="border-left-color:#ff9800;">
+          <div class="regime-header">
+            <span class="regime-number" style="background:#ff9800;">4</span>
+            <div>
+              <div class="regime-title">Normal Shock Inside the Nozzle</div>
+              <div class="regime-condition"><span class="frac frac-sm"><span class="frac-num">p<sub>a</sub></span><span class="frac-den">p<sub>0</sub></span></span><sub style="font-size:0.7rem;">NS</sub> &lt; <span class="frac frac-sm"><span class="frac-num">p<sub>a</sub></span><span class="frac-den">p<sub>0</sub></span></span> &lt; <span class="frac frac-sm"><span class="frac-num">p<sub>a</sub></span><span class="frac-den">p<sub>0</sub></span></span><sub style="font-size:0.7rem;">sub</sub></div>
+            </div>
+          </div>
+          <p>The throat remains choked (M = 1). Flow accelerates to supersonic conditions in the diverging section, but the ambient pressure is still too high to support supersonic flow all the way to the exit. A normal shock forms inside the diverging section to bridge the pressure gap, returning the flow to subsonic before the exit, where p<sub>e</sub> = p<sub>a</sub>.</p>
+          <p>As p<sub>a</sub>/p<sub>0</sub> is lowered within this range, the shock moves progressively downstream — it first appears at the throat and migrates toward the exit plane as p<sub>a</sub>/p<sub>0</sub> approaches (p<sub>a</sub>/p<sub>0</sub>)<sub>NS</sub>.</p>
+          <div class="diagram-placeholder">[ Mach &amp; pressure distribution diagrams — coming soon ]</div>
+        </div>
+
+        <div class="regime-card" style="border-left-color:#ff5722;">
+          <div class="regime-header">
+            <span class="regime-number" style="background:#ff5722;">5</span>
+            <div>
+              <div class="regime-title">Normal Shock at the Nozzle Exit</div>
+              <div class="regime-condition"><span class="frac frac-sm"><span class="frac-num">p<sub>a</sub></span><span class="frac-den">p<sub>0</sub></span></span> = <span class="frac frac-sm"><span class="frac-num">p<sub>a</sub></span><span class="frac-den">p<sub>0</sub></span></span><sub style="font-size:0.7rem;">NS</sub></div>
+            </div>
+          </div>
+          <p>The limiting case of Regime 4. The normal shock has moved all the way to the exit plane. The flow inside the nozzle is now fully supersonic through the entire diverging section, with a normal shock standing exactly at the exit to jump the pressure up to p<sub>a</sub>.</p>
+          <div class="regime-note">This is the last regime in which the internal nozzle flow is affected by changes in p<sub>a</sub>. Below this ratio, the flow field inside the nozzle is fixed.</div>
+          <div class="diagram-placeholder">[ Mach &amp; pressure distribution diagrams — coming soon ]</div>
+        </div>
+
+        <div class="regime-group-heading">
+          <div class="regime-group-title">External Adjustment Regimes</div>
+          <div class="regime-group-sub">Fully supersonic internal flow · jet adjusts to ambient pressure outside the nozzle.</div>
+        </div>
+        <div class="regime-card" style="border-left-color:#9c27b0;">
+          <div class="regime-header">
+            <span class="regime-number" style="background:#9c27b0;">6</span>
+            <div>
+              <div class="regime-title">Overexpanded Jet</div>
+              <div class="regime-condition"><span class="frac frac-sm"><span class="frac-num">p<sub>a</sub></span><span class="frac-den">p<sub>0</sub></span></span><sub style="font-size:0.7rem;">sup</sub> &lt; <span class="frac frac-sm"><span class="frac-num">p<sub>a</sub></span><span class="frac-den">p<sub>0</sub></span></span> &lt; <span class="frac frac-sm"><span class="frac-num">p<sub>a</sub></span><span class="frac-den">p<sub>0</sub></span></span><sub style="font-size:0.7rem;">NS</sub></div>
+            </div>
+          </div>
+          <p>The internal flow is now fully supersonic and isentropic to the exit — identical to the design condition — but p<sub>e</sub> &lt; p<sub>a</sub>. The gas has been expanded too far relative to what the ambient pressure requires (hence <em>overexpanded</em>). The pressure adjustment now occurs <strong>outside</strong> the nozzle.</p>
+          <p>Since p<sub>a</sub> is below the normal-shock threshold, a normal shock would overshoot the required pressure rise. Instead, weaker oblique shocks form just outside the nozzle exit in a characteristic diamond pattern. As p<sub>a</sub>/p<sub>0</sub> is lowered toward (p<sub>a</sub>/p<sub>0</sub>)<sub>sup</sub>, these oblique shocks become progressively weaker.</p>
+          <div class="diagram-placeholder">[ Mach &amp; pressure distribution diagrams — coming soon ]</div>
+        </div>
+
+        <div class="regime-card" style="border-left-color:#4a9eff;">
+          <div class="regime-header">
+            <span class="regime-number" style="background:#4a9eff;">7</span>
+            <div>
+              <div class="regime-title">Perfectly Expanded — Design Condition</div>
+              <div class="regime-condition"><span class="frac frac-sm"><span class="frac-num">p<sub>a</sub></span><span class="frac-den">p<sub>0</sub></span></span> = <span class="frac frac-sm"><span class="frac-num">p<sub>a</sub></span><span class="frac-den">p<sub>0</sub></span></span><sub style="font-size:0.7rem;">sup</sub></div>
+            </div>
+          </div>
+          <p>The nozzle operates at its design point. The flow is fully supersonic and isentropic throughout, and the exit pressure exactly matches ambient: p<sub>e</sub> = p<sub>a</sub>. No shocks or expansion waves form outside the nozzle. This is the optimal operating condition.</p>
+          <div class="diagram-placeholder">[ Mach &amp; pressure distribution diagrams — coming soon ]</div>
+        </div>
+
+        <div class="regime-card" style="border-left-color:#00bcd4;">
+          <div class="regime-header">
+            <span class="regime-number" style="background:#00bcd4;">8</span>
+            <div>
+              <div class="regime-title">Underexpanded Jet</div>
+              <div class="regime-condition"><span class="frac frac-sm"><span class="frac-num">p<sub>a</sub></span><span class="frac-den">p<sub>0</sub></span></span> &lt; <span class="frac frac-sm"><span class="frac-num">p<sub>a</sub></span><span class="frac-den">p<sub>0</sub></span></span><sub style="font-size:0.7rem;">sup</sub></div>
+            </div>
+          </div>
+          <p>The ambient pressure has dropped below the design value, so p<sub>e</sub> &gt; p<sub>a</sub> — the gas has not been expanded far enough (hence <em>underexpanded</em>). The internal flow and exit conditions are identical to the design point, since further reductions in p<sub>a</sub> cannot affect anything upstream of the exit plane.</p>
+          <p>The excess pressure is relieved outside the nozzle through Prandtl–Meyer expansion fans, which form at the nozzle lip and turn the flow outward, continuing to accelerate and expand the gas beyond the exit Mach number.</p>
+          <div class="diagram-placeholder">[ Mach &amp; pressure distribution diagrams — coming soon ]</div>
+        </div>
+
+        </div><!-- end .pg -->
+      </div><!-- end page-cdregimes -->
+
+    </div>
+  </div>
+
+  <script>
+    // ── PAGE SWITCHING ──
+    function showPage(name, clickedTab) {
+      document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.getElementById('page-' + name).classList.add('active');
+      clickedTab.classList.add('active');
+    }
+
+    // ── NORMAL SHOCK ──
+    const normalVarLabels = {
+      M1:  'Upstream Mach (M₁)',
+      M2:  'Downstream Mach (M₂)',
+      p:   'Pressure ratio (p₂/p₁)',
+      rho: 'Density ratio (ρ₂/ρ₁)',
+      T:   'Temperature ratio (T₂/T₁)',
+      p0:  'Stag. pressure ratio (p₀₂/p₀₁)'
+    };
+
+    function updateNormalLabel() {
+      const v = document.getElementById('n-var').value;
+      document.getElementById('n-val-label').textContent = normalVarLabels[v] + ':';
+      // Sensible default values
+      const defaults = { M1:'2.0', M2:'0.577', p:'4.5', rho:'2.667', T:'1.6875', p0:'0.7209' };
+      document.getElementById('n-val').value = defaults[v];
+    }
+
+    // Given M1 and gamma, compute all normal shock quantities
+    function normalFromM1(M1, gamma) {
+      if (M1 <= 1) return null;
+      const M2sq = (1 + 0.5*(gamma-1)*M1*M1) / (gamma*M1*M1 - 0.5*(gamma-1));
+      const M2  = Math.sqrt(M2sq);
+      const p   = 1 + 2*gamma/(gamma+1)*(M1*M1-1);
+      const rho = (gamma+1)*M1*M1 / ((gamma-1)*M1*M1+2);
+      const T   = p / rho;
+      const p0  = p * Math.pow((1+0.5*(gamma-1)*M2*M2)/(1+0.5*(gamma-1)*M1*M1), gamma/(gamma-1));
+      return { M1, M2, p, rho, T, p0 };
+    }
+
+    // Invert each variable to find M1 using bisection, then call normalFromM1
+    function normalSolveM1(varName, val, gamma) {
+      if (varName === 'M1') return normalFromM1(val, gamma);
+
+      // For each variable, define f(M1) = computed_var(M1) - val
+      const fns = {
+        M2:  M1 => { const r = normalFromM1(M1,gamma); return r ? r.M2  - val : NaN; },
+        p:   M1 => { const r = normalFromM1(M1,gamma); return r ? r.p   - val : NaN; },
+        rho: M1 => { const r = normalFromM1(M1,gamma); return r ? r.rho - val : NaN; },
+        T:   M1 => { const r = normalFromM1(M1,gamma); return r ? r.T   - val : NaN; },
+        p0:  M1 => { const r = normalFromM1(M1,gamma); return r ? r.p0  - val : NaN; },
+      };
+      const f = fns[varName];
+      // Bisect on M1 in (1+eps, 50)
+      let lo = 1.0001, hi = 50, mid, flo = f(lo), fhi = f(hi);
+      if (flo * fhi > 0) return null; // no bracket
+      for (let i = 0; i < 80; i++) {
+        mid = (lo + hi) / 2;
+        const fm = f(mid);
+        if (flo * fm <= 0) { hi = mid; } else { lo = mid; flo = fm; }
+      }
+      return normalFromM1((lo+hi)/2, gamma);
+    }
+
+    function computeNormal() {
+      const varName = document.getElementById('n-var').value;
+      const val     = parseFloat(document.getElementById('n-val').value);
+      const gamma   = parseFloat(document.getElementById('n-gamma').value);
+      const setTile = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+      if (isNaN(val) || isNaN(gamma) || gamma <= 1) {
+        ['nr-M1','nr-M2','nr-p','nr-rho','nr-T','nr-p0'].forEach(id => setTile(id, '—'));
+        const errEl = document.getElementById('normal-error');
+        if (errEl) { errEl.style.display=''; errEl.textContent='Please enter valid values: numeric input and γ > 1.'; }
+        return;
+      }
+      const errEl = document.getElementById('normal-error');
+      const r = normalSolveM1(varName, val, gamma);
+      if (!r) {
+        ['nr-M1','nr-M2','nr-p','nr-rho','nr-T','nr-p0'].forEach(id => setTile(id, '—'));
+        if (errEl) { errEl.style.display=''; errEl.textContent='No physical solution. A normal shock requires upstream Mach M₁ > 1.'; }
+        return;
+      }
+      if (errEl) errEl.style.display='none';
+      // Mark the input tile differently
+      const inputIds = { M1:'nr-M1', M2:'nr-M2', p:'nr-p', rho:'nr-rho', T:'nr-T', p0:'nr-p0' };
+      Object.entries(inputIds).forEach(([k, id]) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const val2 = { M1:r.M1, M2:r.M2, p:r.p, rho:r.rho, T:r.T, p0:r.p0 }[k];
+        el.textContent = val2.toFixed(4);
+        el.className = 'out-value' + (k === varName ? ' placeholder-val' : '');
+      });
+      markKnownTile(varName);
+      // Interpretation
+      const interp = document.getElementById('normal-interpretation');
+      if (interp) {
+        const sub = r.M2 < 1 ? 'subsonic' : 'supersonic';
+        const p0loss = ((1 - r.p0)*100).toFixed(1);
+        interp.textContent = `M₁ = ${r.M1.toFixed(3)} → normal shock → M₂ = ${r.M2.toFixed(4)} (${sub}). `
+          + `Static pressure rises by ${((r.p-1)*100).toFixed(1)}%. Stagnation pressure loss: ${p0loss}%.`;
+      }
+    }
+
+    // ── OBLIQUE SHOCK ──
+    // Keep input 2 from showing same option as input 1
+    function updateObliqueOptions() {
+      const v1 = document.getElementById('o-var1').value;
+      const sel2 = document.getElementById('o-var2');
+      const allowed2 = {
+        M1:    ['theta','beta','p','T','rho','M2'],
+        theta: ['M1','beta','p','T','rho','M2'],
+        beta:  ['M1','theta','p','T','rho','M2'],
+        p:     ['M1','beta'],
+        T:     ['M1'],
+        rho:   ['M1'],
+        M2:    ['M1'],
+      };
+      const labels = {
+        M1:'Upstream Mach (M₁)', theta:'Deflection angle (θ, deg)',
+        beta:'Shock angle (β, deg)', p:'Pressure ratio (p₂/p₁)',
+        T:'Temperature ratio (T₂/T₁)', rho:'Density ratio (ρ₂/ρ₁)',
+        M2:'Downstream Mach (M₂)'
+      };
+      const opts = allowed2[v1] || [];
+      sel2.innerHTML = opts.map(k => `<option value="${k}">${labels[k]}</option>`).join('');
+    }
+
+    // Core oblique shock: given M1, beta (rad), gamma → all quantities
+    function obliqueFromM1Beta(M1, beta, gamma) {
+      const sinB = Math.sin(beta), cosB = Math.cos(beta);
+      const M1n = M1 * sinB;
+      if (M1n <= 1) return null;
+      // theta from TBM
+      const tanTheta = 2 * (cosB / sinB) * (M1*M1*sinB*sinB - 1) /
+                       (M1*M1*(gamma + Math.cos(2*beta)) + 2);
+      const theta = Math.atan(tanTheta);
+      if (theta <= 0) return null;
+      const M2nsq = (1 + 0.5*(gamma-1)*M1n*M1n) / (gamma*M1n*M1n - 0.5*(gamma-1));
+      const M2n = Math.sqrt(M2nsq);
+      const M2  = M2n / Math.sin(beta - theta);
+      const p   = (2*gamma*M1n*M1n - (gamma-1)) / (gamma+1);
+      const rho = (gamma+1)*M1n*M1n / ((gamma-1)*M1n*M1n + 2);
+      const T   = p / rho;
+      const p0  = p * Math.pow((1+0.5*(gamma-1)*M2n*M2n)/(1+0.5*(gamma-1)*M1n*M1n), gamma/(gamma-1));
+      return { M1, beta: beta*180/Math.PI, theta: theta*180/Math.PI, M1n, M2, p, rho, T, p0 };
+    }
+
+    // Find weak and strong beta for given M1, theta
+    function solveBetaBoth(M1, gamma, thetaRad) {
+      const mu = Math.asin(1/M1);
+      const start = mu + 1e-4, end = Math.PI/2 - 1e-4;
+      const steps = 8000;
+      const step = (end - start) / steps;
+      // TBM residual
+      const residual = beta => {
+        const num = 2*(1/Math.tan(beta))*(M1*M1*Math.sin(beta)*Math.sin(beta)-1);
+        const den = M1*M1*(gamma + Math.cos(2*beta)) + 2;
+        return Math.tan(thetaRad) - num/den;
+      };
+      // Find sign changes → roots
+      let roots = [];
+      let prev = residual(start);
+      for (let i = 1; i <= steps; i++) {
+        const beta = start + i*step;
+        const curr = residual(beta);
+        if (prev * curr < 0) {
+          // bisect to refine
+          let lo = beta - step, hi = beta, flo = prev;
+          for (let j = 0; j < 60; j++) {
+            const mid = (lo+hi)/2, fm = residual(mid);
+            if (flo*fm <= 0) { hi = mid; } else { lo = mid; flo = fm; }
+          }
+          roots.push((lo+hi)/2);
+        }
+        prev = curr;
+      }
+      return roots; // typically [weak_beta, strong_beta]
+    }
+
+    // Solve M1 from beta + some other variable using bisection
+    function solveM1FromBetaAndVar(beta, varName, val, gamma) {
+      const f = M1 => {
+        const r = obliqueFromM1Beta(M1, beta, gamma);
+        if (!r) return NaN;
+        return r[varName] - val;
+      };
+      let lo = 1.0001, hi = 50;
+      let flo = f(lo), fhi = f(hi);
+      if (isNaN(flo) || isNaN(fhi) || flo*fhi > 0) return null;
+      for (let i = 0; i < 80; i++) {
+        const mid = (lo+hi)/2, fm = f(mid);
+        if (flo*fm <= 0) { hi = mid; } else { lo = mid; flo = fm; }
+      }
+      return (lo+hi)/2;
+    }
+
+    // Solve M1 from theta + some other variable
+    function solveM1FromThetaAndVar(thetaRad, varName, val, gamma, wantWeak) {
+      // Try candidate M1 values; for each, solve beta from M1+theta, then check var
+      const f = M1 => {
+        if (M1 <= 1) return NaN;
+        const betas = solveBetaBoth(M1, gamma, thetaRad);
+        if (!betas.length) return NaN;
+        const beta = wantWeak ? betas[0] : (betas.length > 1 ? betas[betas.length-1] : betas[0]);
+        const r = obliqueFromM1Beta(M1, beta, gamma);
+        if (!r) return NaN;
+        return r[varName] - val;
+      };
+      let lo = 1.0001, hi = 50;
+      let flo = f(lo), fhi = f(hi);
+      if (isNaN(flo) || isNaN(fhi) || flo*fhi > 0) return null;
+      for (let i = 0; i < 80; i++) {
+        const mid = (lo+hi)/2, fm = f(mid);
+        if (isNaN(fm)) return null;
+        if (flo*fm <= 0) { hi = mid; } else { lo = mid; flo = fm; }
+      }
+      return (lo+hi)/2;
+    }
+
+    function computeOblique() {
+      const gamma    = parseFloat(document.getElementById('o-gamma').value);
+      const wantWeak = document.getElementById('o-shocktype').value === 'weak';
+      const var1     = document.getElementById('o-var1').value;
+      const val1     = parseFloat(document.getElementById('o-val1').value);
+      const var2     = document.getElementById('o-var2').value;
+      const val2     = parseFloat(document.getElementById('o-val2').value);
+      const el       = document.getElementById('oblique-results');
+
+      const obErr = document.getElementById('oblique-error');
+      if (isNaN(gamma) || gamma <= 1 || isNaN(val1) || isNaN(val2)) {
+        if (obErr) { obErr.style.display=''; obErr.textContent='Please enter valid values: γ > 1, and numeric inputs for both fields.'; }
+        ['or-M1','or-mu','or-beta','or-theta','or-M1n','or-M2','or-p','or-rho','or-T','or-p0'].forEach(id => { const e=document.getElementById(id); if(e)e.textContent='—'; });
+        return;
+      }
+      if (obErr) obErr.style.display='none';
+
+      // Normalise so we always work with (varA, varB) where varA is the "primary"
+      // All cases reduce to finding M1 + beta, then calling obliqueFromM1Beta
+      let result = null;
+
+      const toRad = d => d * Math.PI / 180;
+
+      // Helper: given M1, find result for desired shock type
+      const fromM1 = M1 => {
+        if (M1 <= 1) return null;
+        // Determine beta
+        if (var1==='beta' || var2==='beta') {
+          const betaDeg = var1==='beta' ? val1 : val2;
+          return obliqueFromM1Beta(M1, toRad(betaDeg), gamma);
+        }
+        if (var1==='theta' || var2==='theta') {
+          const thetaDeg = var1==='theta' ? val1 : val2;
+          const betas = solveBetaBoth(M1, gamma, toRad(thetaDeg));
+          if (!betas.length) return null;
+          const beta = wantWeak ? betas[0] : (betas.length>1 ? betas[betas.length-1] : betas[0]);
+          return obliqueFromM1Beta(M1, beta, gamma);
+        }
+        return null;
+      };
+
+      // ── CASE: M1 is one of the inputs ──
+      if (var1==='M1' || var2==='M1') {
+        const M1     = var1==='M1' ? val1 : val2;
+        const other  = var1==='M1' ? var2 : var1;
+        const otherV = var1==='M1' ? val2 : val1;
+
+        if (other === 'beta') {
+          result = obliqueFromM1Beta(M1, toRad(otherV), gamma);
+        } else if (other === 'theta') {
+          const betas = solveBetaBoth(M1, gamma, toRad(otherV));
+          if (betas.length) {
+            const beta = wantWeak ? betas[0] : (betas.length>1 ? betas[betas.length-1] : betas[0]);
+            result = obliqueFromM1Beta(M1, beta, gamma);
+          }
+        } else {
+          // other is p, T, rho, or M2 — solve beta numerically
+          const betaSolved = solveM1FromBetaAndVar.bind(null); // unused; do beta scan
+          // Scan beta to find matching value
+          const mu = Math.asin(1/M1);
+          const start = mu + 1e-4, end = Math.PI/2 - 1e-4;
+          const steps = 8000;
+          const step2 = (end-start)/steps;
+          const resid = beta => {
+            const r = obliqueFromM1Beta(M1, beta, gamma);
+            return r ? r[other] - otherV : NaN;
+          };
+          let betas = [];
+          let prev = resid(start);
+          for (let i = 1; i <= steps; i++) {
+            const beta = start + i*step2;
+            const curr = resid(beta);
+            if (!isNaN(prev) && !isNaN(curr) && prev*curr < 0) {
+              let lo = beta-step2, hi = beta, flo = prev;
+              for (let j = 0; j < 60; j++) {
+                const mid=(lo+hi)/2, fm=resid(mid);
+                if (flo*fm<=0){hi=mid;}else{lo=mid;flo=fm;}
+              }
+              betas.push((lo+hi)/2);
+            }
+            prev = curr;
+          }
+          if (betas.length) {
+            const beta = wantWeak ? betas[0] : (betas.length>1 ? betas[betas.length-1] : betas[0]);
+            result = obliqueFromM1Beta(M1, beta, gamma);
+          }
+        }
+
+      // ── CASE: theta + beta ──
+      } else if ((var1==='theta'&&var2==='beta')||(var1==='beta'&&var2==='theta')) {
+        const thetaDeg = var1==='theta' ? val1 : val2;
+        const betaDeg  = var1==='beta'  ? val1 : val2;
+        const beta = toRad(betaDeg), theta = toRad(thetaDeg);
+        // M1 from TBM: solve numerically
+        const f = M1 => {
+          if (M1<=1) return NaN;
+          const sinB=Math.sin(beta),cosB=Math.cos(beta);
+          const num = 2*(cosB/sinB)*(M1*M1*sinB*sinB-1);
+          const den = M1*M1*(gamma+Math.cos(2*beta))+2;
+          return Math.atan(num/den) - theta;
+        };
+        let lo=1.0001, hi=50, flo=f(lo), fhi=f(hi);
+        if (!isNaN(flo)&&!isNaN(fhi)&&flo*fhi<=0) {
+          for (let i=0;i<80;i++){const mid=(lo+hi)/2,fm=f(mid);if(flo*fm<=0){hi=mid;}else{lo=mid;flo=fm;}}
+          result = obliqueFromM1Beta((lo+hi)/2, beta, gamma);
+        }
+
+      // ── CASE: beta + flow variable ──
+      } else if (var1==='beta' || var2==='beta') {
+        const betaDeg = var1==='beta' ? val1 : val2;
+        const other   = var1==='beta' ? var2 : var1;
+        const otherV  = var1==='beta' ? val2 : val1;
+        const M1 = solveM1FromBetaAndVar(toRad(betaDeg), other, otherV, gamma);
+        if (M1) result = obliqueFromM1Beta(M1, toRad(betaDeg), gamma);
+
+      // ── CASE: theta + flow variable ──
+      } else if (var1==='theta' || var2==='theta') {
+        const thetaDeg = var1==='theta' ? val1 : val2;
+        const other    = var1==='theta' ? var2 : var1;
+        const otherV   = var1==='theta' ? val2 : val1;
+        const M1 = solveM1FromThetaAndVar(toRad(thetaDeg), other, otherV, gamma, wantWeak);
+        if (M1) result = fromM1(M1);
+      }
+
+      const s = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
+      const oblErrEl = document.getElementById('oblique-error');
+      if (!result) {
+        ['or-M1','or-mu','or-beta','or-theta','or-M1n','or-M2','or-p','or-rho','or-T','or-p0']
+          .forEach(id => s(id, '—'));
+        if (oblErrEl) { oblErrEl.style.display=''; oblErrEl.textContent='No attached oblique shock solution for these inputs. Try a smaller deflection angle, or check that M₁ > 1.'; }
+        return;
+      }
+      if (oblErrEl) oblErrEl.style.display='none';
+      // If theta was a direct input, echo it back exactly rather than showing
+      // the numerically-recomputed theta (which may differ by ~0.01° due to
+      // root-finding tolerance in beta).  All other quantities are still computed
+      // from the solved beta, so they are internally consistent.
+      const inputTheta = (var1 === 'theta') ? val1 : (var2 === 'theta') ? val2 : null;
+      const displayTheta = (inputTheta !== null)
+        ? inputTheta.toFixed(4)
+        : result.theta.toFixed(4);
+
+      const betaMin = (Math.asin(1 / result.M1) * 180 / Math.PI).toFixed(4);
+      s('or-M1',    result.M1   .toFixed(4));
+      s('or-mu',    betaMin + '°');
+      s('or-beta',  result.beta .toFixed(4) + '°');
+      s('or-theta', displayTheta + '°');
+      s('or-M1n',   result.M1n  .toFixed(4));
+      s('or-M2',    result.M2   .toFixed(4));
+      s('or-p',     result.p    .toFixed(4));
+      s('or-rho',   result.rho  .toFixed(4));
+      s('or-T',     result.T    .toFixed(4));
+      s('or-p0',    result.p0   .toFixed(4));
+      // Interpretation
+      const oblInterp = document.getElementById('oblique-interpretation');
+      if (oblInterp) {
+        const branch = document.getElementById('o-shocktype').value === 'weak' ? 'weak' : 'strong';
+        const ds = result.M2 > 1 ? 'supersonic' : 'subsonic';
+        oblInterp.textContent = `${branch.charAt(0).toUpperCase()+branch.slice(1)} oblique shock: β = ${result.beta.toFixed(2)}°, θ = ${result.theta.toFixed(2)}°. `
+          + `Downstream M₂ = ${result.M2.toFixed(4)} (${ds}). Pressure rises ${((result.p-1)*100).toFixed(1)}%.`;
+      }
+    }
+
+    // ── RAYLEIGH FLOW ──
+    // Rayleigh F-function: F(M) = M/(1+γM²) * (1 + (γ-1)/2 * M²)^0.5
+    function rayleighF(M, gamma) {
+      return (M / (1 + gamma * M * M)) * Math.pow(1 + 0.5 * (gamma - 1) * M * M, 0.5);
+    }
+
+    function computeRayleigh() {
+      const M1 = parseFloat(document.getElementById('r-M1').value);
+      const M2 = parseFloat(document.getElementById('r-M2').value);
+      const gamma = parseFloat(document.getElementById('r-gamma').value);
+      const rayErrEl = document.getElementById('rayleigh-error');
+      if (isNaN(M1) || M1 <= 0 || isNaN(M2) || M2 <= 0 || isNaN(gamma) || gamma <= 1) {
+        if (rayErrEl) { rayErrEl.style.display=''; rayErrEl.textContent='Please enter valid values: M₁ > 0, M₂ > 0, γ > 1.'; }
+        ['rr-p','rr-T','rr-rho','rr-T0','rr-p0','rr-q'].forEach(id => { const e=document.getElementById(id); if(e)e.textContent='—'; });
+        return;
+      }
+      if (rayErrEl) rayErrEl.style.display='none';
+      // Pressure ratio: p2/p1 = (1 + γM1²) / (1 + γM2²)
+      const p2_p1 = (1 + gamma * M1 * M1) / (1 + gamma * M2 * M2);
+      // Temperature ratio: T2/T1 = [M2(1+γM1²)]² / [M1(1+γM2²)]²
+      const T2_T1 = Math.pow((M2 * (1 + gamma * M1 * M1)) / (M1 * (1 + gamma * M2 * M2)), 2);
+      // Density ratio from ideal gas: ρ2/ρ1 = (p2/p1) / (T2/T1)
+      const rho2_rho1 = p2_p1 / T2_T1;
+      // Stagnation temperature ratio (correct Rayleigh formula):
+      //   T0/T0* = 2(γ+1)M²(1 + (γ-1)/2·M²) / (1+γM²)²
+      //   This equals 1 at M=1 (by definition of the sonic reference state ✓)
+      const T0_T0star_fn = M => 2*(gamma+1)*M*M*(1+0.5*(gamma-1)*M*M) / Math.pow(1+gamma*M*M, 2);
+      const T02_T01 = T0_T0star_fn(M2) / T0_T0star_fn(M1);
+      // Stagnation pressure ratio via Rayleigh p0/p0* star ratios:
+      //   p0/p0* = [(γ+1)/(1+γM²)] · [(2/(γ+1))(1+(γ-1)/2·M²)]^(γ/(γ-1))
+      const p0_p0star_fn = M => ((gamma + 1) / (1 + gamma * M * M)) *
+        Math.pow((2 / (gamma + 1)) * (1 + 0.5 * (gamma - 1) * M * M), gamma / (gamma - 1));
+      const p02_p01 = p0_p0star_fn(M2) / p0_p0star_fn(M1);
+      // Heat addition ratio: q/h01 = T02/T01 - 1
+      const q_h01 = T02_T01 - 1;
+
+      const s = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
+      s('rr-p',   p2_p1.toFixed(4));
+      s('rr-T',   T2_T1.toFixed(4));
+      s('rr-rho', rho2_rho1.toFixed(4));
+      s('rr-T0',  T02_T01.toFixed(4));
+      s('rr-p0',  p02_p01.toFixed(4));
+      s('rr-q',   q_h01.toFixed(4));
+      const rayInterp = document.getElementById('rayleigh-interpretation');
+      if (rayInterp) {
+        const dir = T02_T01 > 1 ? 'added' : 'removed';
+        const choking = M2 >= 0.999 && M2 <= 1.001 ? ' Flow is at the choking limit (M₂ = 1).' : '';
+        rayInterp.textContent = `Heat ${dir} (T₀₂/T₀₁ = ${T02_T01.toFixed(4)}). `
+          + `Stagnation pressure ratio p₀₂/p₀₁ = ${p02_p01.toFixed(4)} (loss due to irreversibility).${choking}`;
+      }
+    }
+
+    function computeRayleighStar() {
+      const M = parseFloat(document.getElementById('rs-M').value);
+      const gamma = parseFloat(document.getElementById('rs-gamma').value);
+      const s = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
+      const rayStarErr = document.getElementById('rayleigh-star-error');
+      if (isNaN(M) || M <= 0 || isNaN(gamma) || gamma <= 1) {
+        if (rayStarErr) { rayStarErr.style.display=''; rayStarErr.textContent='Please enter M > 0 and γ > 1.'; }
+        ['rs-p','rs-rho','rs-T','rs-u','rs-T0'].forEach(id => s(id, '—'));
+        return;
+      }
+      if (rayStarErr) rayStarErr.style.display='none';
+      const p_pstar = (1 + gamma) / (1 + gamma * M * M);
+      const rho_rhostar = (1 + gamma * M * M) / ((1 + gamma) * M * M);
+      const T_Tstar = Math.pow((1 + gamma) * M, 2) / Math.pow(1 + gamma * M * M, 2);
+      const u_ustar = (1 + gamma) * M * M / (1 + gamma * M * M);
+      const T0_T0star = 2*(gamma+1)*M*M*(1+0.5*(gamma-1)*M*M) / Math.pow(1+gamma*M*M, 2);
+
+      s('rs-p',   p_pstar.toFixed(4));
+      s('rs-rho', rho_rhostar.toFixed(4));
+      s('rs-T',   T_Tstar.toFixed(4));
+      s('rs-u',   u_ustar.toFixed(4));
+      s('rs-T0',  T0_T0star.toFixed(4));
+    }
+
+    // ── FANNO FLOW ──
+    // Standard Fanno 4fL*/D formula (from sonic reference to M):
+    //   4fL*/D = (1 - M²)/(γM²)  +  (γ+1)/(2γ) · ln[(γ+1)M² / (2 + (γ-1)M²)]
+    // Note: (2 + (γ-1)M²) = 2(1 + (γ-1)/2·M²)  and  (γ+1)M²/(2+(γ-1)M²) = (γ+1)/2 · M²/(1+(γ-1)/2·M²)
+    function fannoA(M, gamma) {
+      return (1 - M*M) / (gamma * M*M)
+           + (gamma + 1) / (2 * gamma) * Math.log((gamma + 1) * M*M / (2 + (gamma - 1) * M*M));
+    }
+
+    function computeFanno() {
+      const Mi = parseFloat(document.getElementById('f-Mi').value);
+      const Me = parseFloat(document.getElementById('f-Me').value);
+      const gamma = parseFloat(document.getElementById('f-gamma').value);
+      const s = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
+      const fanErr = document.getElementById('fanno-error');
+      if (isNaN(Mi) || Mi <= 0 || isNaN(Me) || Me <= 0 || isNaN(gamma) || gamma <= 1) {
+        if (fanErr) { fanErr.style.display=''; fanErr.textContent='Please enter valid values: Mᵢ > 0, Mₑ > 0, γ > 1.'; }
+        ['fr-T','fr-p','fr-rho','fr-p0','fr-fL'].forEach(id => s(id, '—'));
+        return;
+      }
+      if (fanErr) fanErr.style.display='none';
+      const Te_Ti = (1 + 0.5 * (gamma - 1) * Mi * Mi) / (1 + 0.5 * (gamma - 1) * Me * Me);
+      const pe_pi = (Mi / Me) * Math.sqrt(Te_Ti);
+      const rho_e_i = (Mi / Me) * (1 / Math.sqrt(Te_Ti));
+      const p0e_p0i = pe_pi * Math.pow(
+        (1 + 0.5 * (gamma - 1) * Me * Me) / (1 + 0.5 * (gamma - 1) * Mi * Mi),
+        gamma / (gamma - 1)
+      );
+      const fLDh = fannoA(Mi, gamma) - fannoA(Me, gamma);
+
+      s('fr-T',   Te_Ti.toFixed(4));
+      s('fr-p',   pe_pi.toFixed(4));
+      s('fr-rho', rho_e_i.toFixed(4));
+      s('fr-p0',  p0e_p0i.toFixed(4));
+      s('fr-fL',  fLDh.toFixed(4));
+      const fanInterp = document.getElementById('fanno-interpretation');
+      if (fanInterp) {
+        const chk = (Me >= 0.999 && Me <= 1.001) ? ' Exit is sonic (choked).' : '';
+        const p0dir = p0e_p0i < 1 ? 'decreases' : 'increases';
+        fanInterp.textContent = `Mᵢ = ${Mi.toFixed(3)} → Mₑ = ${Me.toFixed(3)}. `
+          + `4λL/Dₕ = ${fLDh.toFixed(4)}. Stagnation pressure ${p0dir} (p₀ₑ/p₀ᵢ = ${p0e_p0i.toFixed(4)}).${chk}`;
+      }
+    }
+
+    function computeFannoLength() {
+      const M = parseFloat(document.getElementById('fl-M').value);
+      const gamma = parseFloat(document.getElementById('fl-gamma').value);
+      const s = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
+      const fanLenErr = document.getElementById('fanno-len-error');
+      if (isNaN(M) || M <= 0 || isNaN(gamma) || gamma <= 1) {
+        if (fanLenErr) { fanLenErr.style.display=''; fanLenErr.textContent='Please enter M > 0 and γ > 1.'; }
+        ['fl-fLstar','fl-T','fl-p','fl-rho'].forEach(id => s(id, '—'));
+        return;
+      }
+      if (fanLenErr) fanLenErr.style.display='none';
+      const Astar = fannoA(1, gamma);
+      const AM = fannoA(M, gamma);
+      const fLstar = AM - Astar;
+      const T_Tstar = (1 + 0.5 * (gamma - 1)) / (1 + 0.5 * (gamma - 1) * M * M);
+      const p_pstar = (1 / M) * Math.sqrt(T_Tstar);
+      const rho_rhostar = 1 / (M * Math.sqrt(T_Tstar));
+
+      s('fl-fLstar', fLstar.toFixed(4));
+      s('fl-T',      T_Tstar.toFixed(4));
+      s('fl-p',      p_pstar.toFixed(4));
+      s('fl-rho',    rho_rhostar.toFixed(4));
+    }
+
+    // ── CD NOZZLE ──
+
+    // Isentropic pressure ratio p/p0 given M and gamma
+    function isenP(M, gamma) {
+      return Math.pow(1 + 0.5*(gamma-1)*M*M, -gamma/(gamma-1));
+    }
+
+    // Isentropic temperature ratio T/T0
+    function isenT(M, gamma) {
+      return 1 / (1 + 0.5*(gamma-1)*M*M);
+    }
+
+    // Area-Mach function A/A* = f(M)
+    function areaMach(M, gamma) {
+      const base = (2/(gamma+1)) * (1 + 0.5*(gamma-1)*M*M);
+      return (1/M) * Math.pow(base, (gamma+1)/(2*(gamma-1)));
+    }
+
+    // Solve Mach number from area ratio using bisection
+    // branch: 'sub' (M<1) or 'sup' (M>1)
+    function solveMachFromAR(AR, gamma, branch) {
+      const f = M => areaMach(M, gamma) - AR;
+      let lo, hi;
+      if (branch === 'sub') { lo = 1e-6; hi = 1 - 1e-9; }
+      else                  { lo = 1 + 1e-9; hi = 50; }
+      if (f(lo)*f(hi) > 0) return null;
+      for (let i = 0; i < 80; i++) {
+        const mid = (lo+hi)/2;
+        f(lo)*f(mid) <= 0 ? hi = mid : lo = mid;
+      }
+      return (lo+hi)/2;
+    }
+
+    // ── PRANDTL-MEYER EXPANSION ──
+
+    // PM function ν(M, γ) in radians
+    function nu(M, gamma) {
+      if (M < 1) return NaN;
+      const k = Math.sqrt((gamma + 1) / (gamma - 1));
+      return k * Math.atan(Math.sqrt((M*M - 1) / ((gamma+1)/(gamma-1)))) - Math.atan(Math.sqrt(M*M - 1));
+    }
+
+    // Limiting PM angle ν(∞) = (√((γ+1)/(γ-1)) − 1) · π/2
+    function nuInf(gamma) {
+      return (Math.sqrt((gamma+1)/(gamma-1)) - 1) * Math.PI / 2;
+    }
+
+    // Invert ν → M by bisection (M > 1)
+    function MfromNu(nuVal, gamma) {
+      if (nuVal < 0 || nuVal >= nuInf(gamma)) return null;
+      if (nuVal === 0) return 1.0;
+      const f = M => nu(M, gamma) - nuVal;
+      let lo = 1 + 1e-9, hi = 500;
+      // Ensure bracket
+      while (f(hi) < 0) hi *= 2;
+      for (let i = 0; i < 100; i++) {
+        const mid = (lo + hi) / 2;
+        f(lo) * f(mid) <= 0 ? hi = mid : lo = mid;
+      }
+      return (lo + hi) / 2;
+    }
+
+    // Isentropic p/p0 and T/T0
+    function isenPr(M, gamma) { return Math.pow(1 + 0.5*(gamma-1)*M*M, -gamma/(gamma-1)); }
+    function isenTr(M, gamma) { return 1 / (1 + 0.5*(gamma-1)*M*M); }
+
+    // Format ν in both degrees and radians
+    function fmtNu(nuRad) {
+      return (nuRad * 180 / Math.PI).toFixed(4) + '° (' + nuRad.toFixed(6) + ' rad)';
+    }
+
+    // Update label for section 1
+    function updatePMInputLabel() {
+      const type = document.getElementById('pm-input-type').value;
+      const label = document.getElementById('pm-input-label');
+      const input = document.getElementById('pm-input-val');
+      if (type === 'M') {
+        label.textContent = 'Mach number (M):';
+        input.value = '2.0'; input.step = '0.01';
+      } else {
+        label.textContent = 'PM angle ν (degrees):';
+        input.value = '26.3798'; input.step = '0.01';
+      }
+    }
+
+    // Update label for section 2
+    function updatePMInput2Label() {
+      const type = document.getElementById('pm-input2-type').value;
+      const label = document.getElementById('pm-input2-label');
+      const input = document.getElementById('pm-input2-val');
+      const defaults = { theta:'10.0', Md:'2.385', pd:'0.5', Td:'0.85' };
+      const labels   = { theta:'Deflection angle θ (degrees):', Md:'Downstream Mach (Mₐ):', pd:'Pressure ratio (pₐ/pᵤ):', Td:'Temperature ratio (Tₐ/Tᵤ):' };
+      label.textContent = labels[type];
+      input.value = defaults[type];
+    }
+
+    // ── Section 1: Single-station PM lookup ──
+    function computePMSingle() {
+      const gamma  = parseFloat(document.getElementById('pm-gamma1').value);
+      const type   = document.getElementById('pm-input-type').value;
+      const rawVal = parseFloat(document.getElementById('pm-input-val').value);
+      const s = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
+
+      const pmSErr = document.getElementById('pm-single-error');
+      if (isNaN(gamma) || gamma <= 1 || isNaN(rawVal)) {
+        if (pmSErr) { pmSErr.style.display=''; pmSErr.textContent='Please enter valid values: γ > 1 and a numeric M or ν.'; }
+        ['pm1-M','pm1-nu','pm1-mu','pm1-p','pm1-T','pm1-nuinf','pm1-tmax'].forEach(id => s(id, '—'));
+        return;
+      }
+      if (pmSErr) pmSErr.style.display='none';
+
+      let M, nuVal;
+      if (type === 'M') {
+        M = rawVal;
+        if (M < 1) {
+          if (pmSErr) { pmSErr.style.display=''; pmSErr.textContent='Prandtl–Meyer expansion requires M ≥ 1.'; }
+          ['pm1-M','pm1-nu','pm1-mu','pm1-p','pm1-T','pm1-nuinf','pm1-tmax'].forEach(id => s(id, '—'));
+          return;
+        }
+        nuVal = nu(M, gamma);
+      } else {
+        nuVal = rawVal * Math.PI / 180;
+        const nuMax = nuInf(gamma);
+        if (nuVal < 0 || nuVal >= nuMax) {
+          if (pmSErr) { pmSErr.style.display=''; pmSErr.textContent='ν value out of range for this γ.'; }
+          ['pm1-M','pm1-nu','pm1-mu','pm1-p','pm1-T','pm1-nuinf','pm1-tmax'].forEach(id => s(id, '—'));
+          return;
+        }
+        M = MfromNu(nuVal, gamma);
+        if (!M) {
+          if (pmSErr) { pmSErr.style.display=''; pmSErr.textContent='No solution found for the given ν value.'; }
+          ['pm1-M','pm1-nu','pm1-mu','pm1-p','pm1-T','pm1-nuinf','pm1-tmax'].forEach(id => s(id, '—'));
+          return;
+        }
+      }
+
+      const nuLim = nuInf(gamma);
+      const thetaMax = nuLim - nuVal;
+      const p_p0 = isenPr(M, gamma);
+      const T_T0 = isenTr(M, gamma);
+      const mu   = Math.asin(1/M) * 180 / Math.PI;
+
+      s('pm1-M',     M.toFixed(6));
+      s('pm1-nu',    (nuVal*180/Math.PI).toFixed(4) + '°');
+      s('pm1-mu',    mu.toFixed(4) + '°');
+      s('pm1-p',     p_p0.toFixed(6));
+      s('pm1-T',     T_T0.toFixed(6));
+      s('pm1-nuinf', (nuLim*180/Math.PI).toFixed(4) + '°');
+      s('pm1-tmax',  (thetaMax*180/Math.PI).toFixed(4) + '°');
+      const pmSInterp = document.getElementById('pm-single-interpretation');
+      if (pmSInterp) {
+        pmSInterp.textContent = `M = ${M.toFixed(4)}, ν = ${(nuVal*180/Math.PI).toFixed(3)}°. `
+          + `Maximum remaining expansion angle before M → ∞: θmax = ${(thetaMax*180/Math.PI).toFixed(3)}°.`;
+      }
+    }
+
+    // ── Section 2: Two-station expansion ──
+    function computePMExpansion() {
+      const gamma  = parseFloat(document.getElementById('pm-gamma2').value);
+      const Mu     = parseFloat(document.getElementById('pm-Mu').value);
+      const type   = document.getElementById('pm-input2-type').value;
+      const rawVal = parseFloat(document.getElementById('pm-input2-val').value);
+      const s = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
+      const allIds = ['pm2-Mu','pm2-nuU','pm2-muU','pm2-Md','pm2-nuD','pm2-muD','pm2-theta','pm2-p','pm2-T','pm2-rho','pm2-V'];
+
+      const pmEErr = document.getElementById('pm-expansion-error');
+      if (isNaN(gamma) || gamma <= 1 || isNaN(Mu) || Mu < 1 || isNaN(rawVal)) {
+        if (pmEErr) { pmEErr.style.display=''; pmEErr.textContent='Please enter valid values: Mᵤ ≥ 1, γ > 1, and a numeric downstream quantity.'; }
+        allIds.forEach(id => s(id, '—')); return;
+      }
+      if (pmEErr) pmEErr.style.display='none';
+
+      const nuU = nu(Mu, gamma);
+      const nuLim = nuInf(gamma);
+      let Md, theta;
+
+      if (type === 'theta') {
+        theta = rawVal * Math.PI / 180;
+        if (theta < 0) { allIds.forEach(id => s(id, 'θ ≥ 0')); return; }
+        const nuD = nuU + theta;
+        if (nuD >= nuLim) { allIds.forEach(id => s(id, 'exceeds max θ')); return; }
+        Md = MfromNu(nuD, gamma);
+      } else if (type === 'Md') {
+        Md = rawVal;
+        if (Md < Mu) { allIds.forEach(id => s(id, 'Mₐ ≥ Mᵤ')); return; }
+        theta = nu(Md, gamma) - nuU;
+      } else if (type === 'pd') {
+        const target = rawVal * isenPr(Mu, gamma);
+        if (rawVal >= 1) { allIds.forEach(id => s(id, 'pₐ/pᵤ < 1')); return; }
+        const f = M => isenPr(M, gamma) - target;
+        let lo = Mu, hi = 500;
+        while (f(hi) > 0) hi *= 2;
+        for (let i = 0; i < 100; i++) { const mid=(lo+hi)/2; f(lo)*f(mid)<=0?hi=mid:lo=mid; }
+        Md = (lo+hi)/2; theta = nu(Md, gamma) - nuU;
+      } else if (type === 'Td') {
+        const target = rawVal * isenTr(Mu, gamma);
+        if (rawVal >= 1) { allIds.forEach(id => s(id, 'Tₐ/Tᵤ < 1')); return; }
+        const f = M => isenTr(M, gamma) - target;
+        let lo = Mu, hi = 500;
+        for (let i = 0; i < 100; i++) { const mid=(lo+hi)/2; f(lo)*f(mid)<=0?hi=mid:lo=mid; }
+        Md = (lo+hi)/2; theta = nu(Md, gamma) - nuU;
+      }
+
+      if (!Md || isNaN(Md)) {
+        if (pmEErr) { pmEErr.style.display=''; pmEErr.textContent='No solution. Check that the downstream quantity is physically achievable from this upstream state.'; }
+        allIds.forEach(id => s(id, '—')); return;
+      }
+
+      const nuD       = nu(Md, gamma);
+      const pd_pu     = isenPr(Md, gamma) / isenPr(Mu, gamma);
+      const Td_Tu     = isenTr(Md, gamma) / isenTr(Mu, gamma);
+      const rhod_rhou = pd_pu / Td_Tu;
+      const Vd_Vu     = (Md / Mu) * Math.sqrt(Td_Tu);
+      const muU       = Math.asin(1/Mu) * 180/Math.PI;
+      const muD       = Math.asin(1/Md) * 180/Math.PI;
+
+      s('pm2-Mu',    Mu.toFixed(4));
+      s('pm2-nuU',   (nuU*180/Math.PI).toFixed(4) + '°');
+      s('pm2-muU',   muU.toFixed(4) + '°');
+      s('pm2-Md',    Md.toFixed(4));
+      s('pm2-nuD',   (nuD*180/Math.PI).toFixed(4) + '°');
+      s('pm2-muD',   muD.toFixed(4) + '°');
+      s('pm2-theta', (theta*180/Math.PI).toFixed(4) + '°');
+      s('pm2-p',     pd_pu.toFixed(6));
+      s('pm2-T',     Td_Tu.toFixed(6));
+      s('pm2-rho',   rhod_rhou.toFixed(6));
+      s('pm2-V',     Vd_Vu.toFixed(6));
+      const pmEInterp = document.getElementById('pm-expansion-interpretation');
+      if (pmEInterp) {
+        pmEInterp.textContent = `Expansion from Mᵤ = ${Mu.toFixed(4)} to Mₐ = ${Md.toFixed(4)}. `
+          + `Flow turns through θ = ${(theta*180/Math.PI).toFixed(3)}°. `
+          + `Pressure ratio pₐ/pᵤ = ${pd_pu.toFixed(4)} (decreases through expansion).`;
+      }
+    }
+
+    // ── Section 3: Limiting values ──
+    function computePMLimits() {
+      const gamma = parseFloat(document.getElementById('pm-gamma3').value);
+      const Mu    = parseFloat(document.getElementById('pm-Mlimit').value);
+      const s = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
+
+      const pmLErr = document.getElementById('pm-limits-error');
+      if (isNaN(gamma) || gamma <= 1 || isNaN(Mu) || Mu < 1) {
+        if (pmLErr) { pmLErr.style.display=''; pmLErr.textContent='Please enter valid values: Mᵤ ≥ 1 and γ > 1.'; }
+        ['pm3-nuinf','pm3-nuU','pm3-tmax'].forEach(id => s(id, '—')); return;
+      }
+      if (pmLErr) pmLErr.style.display='none';
+
+      const nuLim    = nuInf(gamma);
+      const nuMu     = nu(Mu, gamma);
+      const thetaMax = nuLim - nuMu;
+
+      s('pm3-nuinf', (nuLim*180/Math.PI).toFixed(4) + '°');
+      s('pm3-nuU',   (nuMu*180/Math.PI).toFixed(4) + '°');
+      s('pm3-tmax',  (thetaMax*180/Math.PI).toFixed(4) + '°');
+    }
+
+    // ══════════════════════════════════════════════════════════
+    // ── CD NOZZLE VISUALISATION (shared physics + rendering) ──
+    // ══════════════════════════════════════════════════════════
+
+    // ── Physics (Brent solver + gas dynamics) ──
+    function cdBrent(f,a,b,tol=1e-9,max=200){
+      let fa=f(a),fb=f(b);
+      if(fa*fb>0)return NaN;
+      if(Math.abs(fa)<tol)return a;
+      if(Math.abs(fb)<tol)return b;
+      let c=a,fc=fa,s,d,mflag=true;
+      for(let i=0;i<max;i++){
+        if(fa!==fc&&fb!==fc)
+          s=a*fb*fc/((fa-fb)*(fa-fc))+b*fa*fc/((fb-fa)*(fb-fc))+c*fa*fb/((fc-fa)*(fc-fb));
+        else s=b-fb*(b-a)/(fb-fa);
+        const c1=!((3*a+b)/4<s&&s<b||b<s&&s<(3*a+b)/4);
+        const c2=mflag&&Math.abs(s-b)>=Math.abs(b-c)/2;
+        const c3=!mflag&&Math.abs(s-b)>=Math.abs(c-d)/2;
+        const c4=mflag&&Math.abs(b-c)<tol,c5=!mflag&&Math.abs(c-d)<tol;
+        if(c1||c2||c3||c4||c5){s=(a+b)/2;mflag=true;}else mflag=false;
+        const fs=f(s);d=c;c=b;fc=fb;
+        if(fa*fs<0){b=s;fb=fs;}else{a=s;fa=fs;}
+        if(Math.abs(fa)<tol)return a;
+        if(Math.abs(fb)<tol)return b;
+        if(Math.abs(b-a)<tol)return b;
+      }
+      return b;
+    }
+    function cdAreaMach(M,g){return(1/M)*Math.pow((2/(g+1))*(1+(g-1)/2*M*M),(g+1)/(2*(g-1)));}
+    function cdIsenPR(M,g){return Math.pow(1+(g-1)/2*M*M,-g/(g-1));}
+    function cdNsM2(M1,g){return Math.sqrt((1+(g-1)/2*M1*M1)/(g*M1*M1-(g-1)/2));}
+    function cdNsPR(M1,g){return 1+2*g/(g+1)*(M1*M1-1);}
+    function cdNsStagPR(M1,g){const p=cdNsPR(M1,g),M2=cdNsM2(M1,g);return Math.pow(1+(g-1)/2*M2*M2,g/(g-1))*p/Math.pow(1+(g-1)/2*M1*M1,g/(g-1));}
+    function cdMachFromArea(r,g,br){return br==='sub'?cdBrent(M=>cdAreaMach(M,g)-r,1e-6,1-1e-7):cdBrent(M=>cdAreaMach(M,g)-r,1+1e-7,30);}
+    function cdMachFromPR(pp0,g){return Math.sqrt(2/(g-1)*(Math.pow(1/pp0,(g-1)/g)-1));}
+    function cdExitPRWithShock(AsAt,AeAt,g){
+      const M1=cdMachFromArea(AsAt,g,'sup'),M2=cdNsM2(M1,g),p02=cdNsStagPR(M1,g);
+      return p02*cdIsenPR(cdMachFromArea(AeAt/(AsAt/cdAreaMach(M2,g)),g,'sub'),g);
+    }
+    function cdFindShockAR(pa_p0,AeAt,g){return cdBrent(As=>cdExitPRWithShock(As,AeAt,g)-pa_p0,1.0001,AeAt-1e-4);}
+
+    function cdBuildGeom(Ae,At,N=500){
+      const xt=0.4,x=[],A=[];
+      for(let i=0;i<N;i++){
+        const xi=i/(N-1);x.push(xi);
+        if(xi<=xt){const t=xi/xt,s=t*t*(3-2*t);A.push(Ae-(Ae-At)*s);}
+        else{const t=(xi-xt)/(1-xt),s=t*t*(3-2*t);A.push(At+(Ae-At)*s);}
+      }
+      return{x,A};
+    }
+
+    function cdSolve(p0,pa,Ae,At,gamma){
+      const N=500,{x,A}=cdBuildGeom(Ae,At,N),xt=0.4;
+      const AeAt=Ae/At,pa_p0=pa/p0;
+      const pCrit=Math.pow(2/(gamma+1),gamma/(gamma-1));
+      const Me_sub=cdMachFromArea(AeAt,gamma,'sub'),Me_sup=cdMachFromArea(AeAt,gamma,'sup');
+      const pCH_p0=cdIsenPR(Me_sub,gamma),pSJ_p0=cdIsenPR(Me_sup,gamma);
+      const pNS_p0=pSJ_p0*cdNsPR(Me_sup,gamma);
+      const tol=1e-4;
+      let regime;
+      if(pa_p0>=1)regime='No flow';
+      else if(pa_p0>pCH_p0)regime='Fully subsonic';
+      else if(Math.abs(pa_p0-pCH_p0)<tol)regime='Just choked';
+      else if(pa_p0>pNS_p0)regime='Normal shock inside nozzle';
+      else if(Math.abs(pa_p0-pNS_p0)<tol)regime='Normal shock at exit';
+      else if(pa_p0>pSJ_p0)regime='Overexpanded jet';
+      else if(Math.abs(pa_p0-pSJ_p0)<tol)regime='Perfectly expanded jet';
+      else regime='Underexpanded jet';
+
+      let iThr=0,minA=Infinity;
+      for(let i=0;i<N;i++)if(A[i]<minA){minA=A[i];iThr=i;}
+
+      const M=new Array(N).fill(NaN),p_p0=new Array(N).fill(NaN);
+      let shockX=NaN;
+
+      if(regime==='No flow'){for(let i=0;i<N;i++){M[i]=0;p_p0[i]=1;}}
+      else if(regime==='Fully subsonic'){
+        const Me=cdMachFromPR(pa_p0,gamma),Astar=Ae/cdAreaMach(Me,gamma);
+        for(let i=0;i<N;i++){M[i]=cdMachFromArea(A[i]/Astar,gamma,'sub');p_p0[i]=cdIsenPR(M[i],gamma);}
+      } else if(regime==='Just choked'){
+        for(let i=0;i<N;i++){M[i]=cdMachFromArea(A[i]/At,gamma,'sub');p_p0[i]=cdIsenPR(M[i],gamma);}
+        M[iThr]=1;p_p0[iThr]=cdIsenPR(1,gamma);
+      } else if(regime==='Normal shock inside nozzle'){
+        const sAR=cdFindShockAR(pa_p0,AeAt,gamma);
+        for(let i=iThr;i<N;i++)if(A[i]/At>=sAR){shockX=x[i];break;}
+        const M1s=cdMachFromArea(sAR,gamma,'sup'),M2s=cdNsM2(M1s,gamma);
+        const p02=cdNsStagPR(M1s,gamma),Astar2=(sAR*At)/cdAreaMach(M2s,gamma);
+        for(let i=0;i<N;i++){
+          const r=A[i]/At;
+          if(x[i]<xt){M[i]=cdMachFromArea(r,gamma,'sub');p_p0[i]=cdIsenPR(M[i],gamma);}
+          else if(x[i]<=shockX){M[i]=cdMachFromArea(r,gamma,'sup');p_p0[i]=cdIsenPR(M[i],gamma);}
+          else{M[i]=cdMachFromArea(A[i]/Astar2,gamma,'sub');p_p0[i]=p02*cdIsenPR(M[i],gamma);}
+        }
+      } else {
+        for(let i=0;i<N;i++){
+          const r=A[i]/At;
+          if(x[i]<xt)M[i]=cdMachFromArea(r,gamma,'sub');
+          else if(Math.abs(A[i]-At)<1e-8)M[i]=1;
+          else M[i]=cdMachFromArea(r,gamma,'sup');
+          p_p0[i]=cdIsenPR(M[i],gamma);
+        }
+      }
+      return{x,A,M,p_p0,regime,pa_p0,pCH_p0,pNS_p0,pSJ_p0,pCrit,shockX,p0,pa,Me_sup,AeAt};
+    }
+
+    // ── Colours ──
+    const CDV={
+      bg:      '#111827',
+      panel:   '#1f2937',
+      surface: '#273449',
+      border:  '#4b5563',
+      grid:    '#334155',
+      text:    '#f3f7ff',
+      muted:   '#b7c0d0',
+      subtle:  '#8fa0b7',
+      blue:    '#38bdf8',
+      orange:  '#f59e0b',
+      green:   '#34d399',
+      red:     '#f87171',
+      yellow:  '#fbbf24'
+    };
+    function cdRegimeColor(r){
+      return({'No flow':CDV.muted,'Fully subsonic':CDV.blue,'Just choked':CDV.green,
+        'Normal shock inside nozzle':CDV.yellow,'Normal shock at exit':CDV.orange,
+        'Overexpanded jet':CDV.red,'Perfectly expanded jet':CDV.green,'Underexpanded jet':CDV.blue})[r]||CDV.muted;
+    }
+    function cdMachColor(M,Mmax){
+      const t=Math.min(M/Math.max(Mmax,0.01),1);
+      const stops=[[0,[74,179,244]],[0.33,[74,240,210]],[0.55,[74,244,160]],[0.75,[244,210,74]],[1,[244,80,74]]];
+      for(let i=0;i<stops.length-1;i++){
+        const[t0,c0]=stops[i],[t1,c1]=stops[i+1];
+        if(t>=t0&&t<=t1){const f=(t-t0)/(t1-t0);return c0.map((v,j)=>Math.round(v+(c1[j]-v)*f));}
+      }
+      return[244,80,74];
+    }
+
+    // ── SVG Nozzle renderer (works for both CD tab and sweep tab) ──
+    const CD_SVG_W=800,CD_SVG_H=180,CD_PAD_L=30,CD_PAD_R=80,CD_PAD_V=18;
+    const CD_DRAW_W=CD_SVG_W-CD_PAD_L-CD_PAD_R,CD_DRAW_H=CD_SVG_H-2*CD_PAD_V,CD_CY=CD_SVG_H/2;
+    let _cdMaxH=1;
+
+    function cdXPx(xi){return CD_PAD_L+xi*CD_DRAW_W;}
+    function cdYHalf(a){return Math.sqrt(a/Math.PI)/_cdMaxH*(CD_DRAW_H/2-4);}
+
+    function cdRenderNozzle(res,svgId){
+      _cdMaxH=Math.sqrt(Math.max(...res.A)/Math.PI);
+      const svg=document.getElementById(svgId);
+      let top='',bot='';
+      for(let i=0;i<res.x.length;i++){
+        const cmd=i===0?'M':'L';
+        top+=`${cmd}${cdXPx(res.x[i]).toFixed(1)},${(CD_CY-cdYHalf(res.A[i])).toFixed(1)} `;
+        bot+=`${cmd}${cdXPx(res.x[i]).toFixed(1)},${(CD_CY+cdYHalf(res.A[i])).toFixed(1)} `;
+      }
+      const fp=res.x.map((xi,i)=>`${cdXPx(xi).toFixed(1)},${(CD_CY-cdYHalf(res.A[i])).toFixed(1)}`).join(' ')
+        +' '+[...res.x].reverse().map((xi,j)=>{const k=res.x.length-1-j;
+          return`${cdXPx(xi).toFixed(1)},${(CD_CY+cdYHalf(res.A[k])).toFixed(1)}`;}).join(' ');
+
+      const xtPx=cdXPx(0.4),exitPx=cdXPx(1.0),eH=cdYHalf(res.A[res.A.length-1]);
+      let ov='';
+
+      function squiggle(sx,sH,col,label){
+        const nPts=80,nW=5,amp=4;let pts='';
+        for(let k=0;k<=nPts;k++){
+          const f=k/nPts,py=(CD_CY-sH)+f*2*sH,px=sx+amp*Math.sin(f*nW*2*Math.PI);
+          pts+=(k===0?'M':'L')+`${px.toFixed(1)},${py.toFixed(1)} `;
+        }
+        ov+=`<path d="${pts}" stroke="${col}" stroke-width="2.2" fill="none" stroke-linecap="round"/>`;
+        ov+=`<text x="${sx+8}" y="${CD_CY-sH-6}" fill="${col}" font-size="10" font-family="JetBrains Mono,monospace">${label}</text>`;
+      }
+
+      if(res.regime==='Normal shock inside nozzle'&&!isNaN(res.shockX)){
+        const sx=cdXPx(res.shockX),idx=res.x.findIndex(xi=>xi>=res.shockX);
+        squiggle(sx,cdYHalf(res.A[Math.max(0,idx)]),CDV.yellow,'Normal shock');
+      } else if(res.regime==='Normal shock at exit'){
+        squiggle(exitPx,eH,CDV.yellow,'NS at exit');
+      } else if(res.regime==='Overexpanded jet'){
+        let ex=exitPx,eh=eH;
+        for(let d=0;d<2;d++){const dX=36;
+          ov+=`<line x1="${ex}" y1="${CD_CY-eh}" x2="${ex+dX}" y2="${CD_CY}" stroke="${CDV.red}" stroke-width="1.8"/>`;
+          ov+=`<line x1="${ex}" y1="${CD_CY+eh}" x2="${ex+dX}" y2="${CD_CY}" stroke="${CDV.red}" stroke-width="1.8"/>`;
+          ov+=`<line x1="${ex+dX}" y1="${CD_CY}" x2="${ex+2*dX}" y2="${CD_CY-eh*.65}" stroke="${CDV.red}" stroke-width="1.8"/>`;
+          ov+=`<line x1="${ex+dX}" y1="${CD_CY}" x2="${ex+2*dX}" y2="${CD_CY+eh*.65}" stroke="${CDV.red}" stroke-width="1.8"/>`;
+          ex+=2*dX;eh*=0.6;}
+        ov+=`<text x="${exitPx+6}" y="${CD_CY-eH-6}" fill="${CDV.red}" font-size="10" font-family="JetBrains Mono,monospace">Oblique shocks</text>`;
+      } else if(res.regime==='Underexpanded jet'){
+        [-1,1].forEach(sgn=>{const yLip=CD_CY+sgn*eH;
+          for(let k=0;k<8;k++){const f=k/7,ang=(-26+f*52)*Math.PI/180;
+            const dx=46*Math.cos(ang),dy=sgn*46*(0.2+0.8*Math.abs(Math.sin(ang)));
+            ov+=`<line x1="${exitPx}" y1="${yLip}" x2="${(exitPx+dx).toFixed(1)}" y2="${(yLip+dy).toFixed(1)}" stroke="${CDV.blue}" stroke-width="1.3" stroke-opacity="0.75"/>`;
+          }});
+        ov+=`<text x="${exitPx+6}" y="${CD_CY-eH-6}" fill="${CDV.blue}" font-size="10" font-family="JetBrains Mono,monospace">P-M expansion</text>`;
+      } else if(res.regime==='Perfectly expanded jet'){
+        ov+=`<line x1="${exitPx}" y1="${CD_CY-eH}" x2="${exitPx}" y2="${CD_CY+eH}" stroke="${CDV.green}" stroke-width="2" stroke-dasharray="4,3"/>`;
+        ov+=`<text x="${exitPx+6}" y="${CD_CY-eH-6}" fill="${CDV.green}" font-size="10" font-family="JetBrains Mono,monospace">Perfect expansion</text>`;
+      }
+
+      svg.innerHTML=`
+        <polygon points="${fp}" fill="${CDV.surface}" stroke="none"/>
+        <path d="${top}" stroke="${CDV.muted}" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+        <path d="${bot}" stroke="${CDV.muted}" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+        <line x1="${CD_PAD_L}" y1="${CD_CY}" x2="${exitPx}" y2="${CD_CY}" stroke="${CDV.grid}" stroke-width="1" stroke-dasharray="6,4"/>
+        <line x1="${xtPx}" y1="${CD_PAD_V}" x2="${xtPx}" y2="${CD_SVG_H-CD_PAD_V}" stroke="${CDV.green}" stroke-width="1" stroke-dasharray="4,3" stroke-opacity="0.4"/>
+        <text x="${xtPx+4}" y="${CD_PAD_V+11}" fill="${CDV.green}" font-size="9" font-family="JetBrains Mono,monospace" opacity="0.55">throat</text>
+        ${ov}`;
+    }
+
+    // ── Plotly chart renderer ──
+    const cdPCfg={displayModeBar:false,responsive:true};
+    const cdBaseLayout={
+      paper_bgcolor:'transparent',plot_bgcolor:CDV.panel,
+      margin:{t:10,b:40,l:52,r:18},
+      font:{family:"'JetBrains Mono',monospace",color:CDV.text,size:11},
+      xaxis:{title:{text:'x / L',standoff:8},gridcolor:CDV.grid,zerolinecolor:CDV.border,tickcolor:CDV.muted,linecolor:CDV.border,color:CDV.muted},
+      showlegend:true,
+      legend:{bgcolor:CDV.panel,bordercolor:CDV.border,borderwidth:1,font:{size:10},x:0.01,y:0.99,xanchor:'left',yanchor:'top'},
+    };
+    function cdYAxis(title,range){return{title:{text:title,standoff:8},gridcolor:CDV.grid,zerolinecolor:CDV.border,tickcolor:CDV.muted,linecolor:CDV.border,color:CDV.muted,range};}
+
+    function cdRenderCharts(res,pressId,machId){
+      const mMax=Math.max(...res.M.filter(m=>!isNaN(m)));
+      Plotly.react(pressId,[
+        {x:res.x,y:res.p_p0,name:'p(x)/p₀',type:'scatter',mode:'lines',line:{color:CDV.blue,width:2.5},fill:'tozeroy',fillcolor:'rgba(74,179,244,0.07)'},
+        {x:[0,1],y:[res.pa_p0,res.pa_p0],name:`pₐ/p₀ = ${res.pa_p0.toFixed(4)}`,mode:'lines',line:{color:CDV.orange,width:1.8,dash:'dash'}},
+        {x:[0,1],y:[res.pCrit,res.pCrit],name:`p*/p₀ = ${res.pCrit.toFixed(4)}`,mode:'lines',line:{color:CDV.green,width:1.5,dash:'dot'}},
+      ],{...cdBaseLayout,yaxis:cdYAxis('p / p₀',[0,1.05])},cdPCfg);
+      Plotly.react(machId,[
+        {x:res.x,y:res.M,name:'M(x)',type:'scatter',mode:'lines',line:{color:CDV.orange,width:2.5},fill:'tozeroy',fillcolor:'rgba(244,144,74,0.07)'},
+        {x:[0,1],y:[1,1],name:'M = 1 (sonic)',mode:'lines',line:{color:CDV.green,width:1.5,dash:'dash'}},
+      ],{...cdBaseLayout,yaxis:cdYAxis('M',[0,mMax*1.12+0.1])},cdPCfg);
+    }
+
+    // ── Particle system (generic, takes canvas ID and LUT) ──
+    function cdMakePSystem(){
+      let running=false,animId=null,particles=[],res=null,lut=[],maxH=1;
+      return{
+        toggle(on,canvasId,r){
+          running=on;
+          if(on){if(r)this.init(r,canvasId);requestAnimationFrame(()=>this.loop(canvasId));}
+          else{if(animId){cancelAnimationFrame(animId);animId=null;}
+            const cv=document.getElementById(canvasId);
+            if(cv)cv.getContext('2d').clearRect(0,0,cv.width,cv.height);}
+        },
+        setRes(r,canvasId){res=r;if(running)this.init(r,canvasId);},
+        buildLut(r,canvasId){
+          const cv=document.getElementById(canvasId);if(!cv)return;
+          const W=cv.offsetWidth||800,H=cv.offsetHeight||180;
+          const sx=W/CD_SVG_W,sy=H/CD_SVG_H;
+          maxH=Math.sqrt(Math.max(...r.A)/Math.PI);
+          lut=r.x.map((xi,i)=>({
+            px:cdXPx(xi)*sx,
+            ytop:(CD_CY-cdYHalf(r.A[i]))*sy,
+            ybot:(CD_CY+cdYHalf(r.A[i]))*sy,
+            M:r.M[i]||0,
+          }));
+        },
+        spawn(xFrac,Mmax){
+          const idx=Math.max(0,Math.min(lut.length-1,Math.floor(xFrac*(lut.length-1))));
+          const l=lut[idx];if(!l)return null;
+          const yf=0.08+Math.random()*0.84;
+          const[r2,g2,b2]=cdMachColor(l.M,Mmax||1);
+          return{idx,yf,px:l.px,py:l.ytop+yf*(l.ybot-l.ytop),r:r2,g:g2,b:b2,
+                 alpha:0.55+Math.random()*0.4,size:1.4+Math.random()*1.3};
+        },
+        init(r,canvasId){res=r;this.buildLut(r,canvasId);
+          const Mmax=Math.max(...r.M.filter(m=>!isNaN(m)&&isFinite(m)));
+          particles=Array.from({length:140},(_,i)=>this.spawn(i/140,Mmax));
+        },
+        loop(canvasId){
+          if(!running){animId=null;return;}
+          const cv=document.getElementById(canvasId);if(!cv){animId=null;return;}
+          const ctx=cv.getContext('2d');
+          const dpr=window.devicePixelRatio||1,rw=cv.offsetWidth,rh=cv.offsetHeight;
+          if(cv.width!==rw*dpr||cv.height!==rh*dpr){
+            cv.width=rw*dpr;cv.height=rh*dpr;ctx.scale(dpr,dpr);
+            if(res)this.buildLut(res,canvasId);
+          }
+          ctx.clearRect(0,0,rw,rh);
+          if(!res||lut.length===0){animId=requestAnimationFrame(()=>this.loop(canvasId));return;}
+          const Mmax=Math.max(...res.M.filter(m=>!isNaN(m)&&isFinite(m)));
+          const L=lut.length;
+          for(let i=0;i<particles.length;i++){
+            let p=particles[i];if(!p)continue;
+            const l=lut[p.idx];
+            const speed=Math.max(0.4,(l.M||0.1)/Math.max(Mmax,0.01))*4;
+            p.idx=Math.min(L-1,p.idx+Math.max(1,Math.round(speed)));
+            if(p.idx>=L-1){particles[i]=this.spawn(Math.random()*0.04,Mmax);continue;}
+            const nl=lut[p.idx];
+            p.px=nl.px;p.py=nl.ytop+p.yf*(nl.ybot-nl.ytop);
+            const[r2,g2,b2]=cdMachColor(nl.M,Mmax);p.r=r2;p.g=g2;p.b=b2;
+            ctx.beginPath();ctx.arc(p.px,p.py,p.size,0,Math.PI*2);
+            ctx.fillStyle=`rgba(${p.r},${p.g},${p.b},${p.alpha})`;ctx.fill();
+          }
+          animId=requestAnimationFrame(()=>this.loop(canvasId));
+        }
+      };
+    }
+    const cdPS = cdMakePSystem();  // for CD nozzle tab
+    const swPS = cdMakePSystem();  // for sweep tab
+
+    // ── Toggle handlers ──
+    function cdToggleAnim(on){
+      const track=document.getElementById('cd-toggle-track');
+      const thumb=document.getElementById('cd-toggle-thumb');
+      if(track)track.style.background=on?CDV.blue:CDV.border;
+      if(thumb)thumb.style.transform=on?'translateX(18px)':'';
+      cdPS.toggle(on,'cd-particle-canvas',_cdLastRes);
+    }
+    function swToggleAnim(on){
+      const track=document.getElementById('sw-toggle-track');
+      const thumb=document.getElementById('sw-toggle-thumb');
+      if(track)track.style.background=on?CDV.blue:CDV.border;
+      if(thumb)thumb.style.transform=on?'translateX(18px)':'';
+      swPS.toggle(on,'sw-particle-canvas',_swLastRes);
+    }
+
+    let _cdLastRes=null;
+    function runCDNozzle(){
+      const gamma=parseFloat(document.getElementById('cd-gamma').value);
+      const R    =parseFloat(document.getElementById('cd-R').value);
+      const p0   =parseFloat(document.getElementById('cd-p0').value);
+      const At   =parseFloat(document.getElementById('cd-At').value);
+      const Ae   =parseFloat(document.getElementById('cd-Ae').value);
+      const pa   =parseFloat(document.getElementById('cd-pa').value);
+      const T0   =parseFloat(document.getElementById('cd-T0').value);
+      const cdErr = document.getElementById('cd-error');
+      if([gamma,R,T0,p0,At,Ae,pa].some(isNaN)||At<=0||Ae<=At||gamma<=1||T0<=0){
+        if(cdErr){cdErr.style.display='';cdErr.textContent='Check inputs: Aₑ > Aₜ > 0, γ > 1, T₀ > 0, and all values numeric.';}
+        return;
+      }
+      if(cdErr) cdErr.style.display='none';
+      const res=cdSolve(p0,pa,Ae,At,gamma);
+      _cdLastRes=res;
+
+      // Show sections
+      ['cd-regime-section','cd-outputs-section','cd-diagram-section','cd-mach-section','cd-charts-section']
+        .forEach(id=>document.getElementById(id).style.display='');
+
+      // Regime bar
+      const col=cdRegimeColor(res.regime);
+      document.getElementById('cd-viz-dot').style.background=col;
+      document.getElementById('cd-viz-regime-text').textContent=res.regime;
+      document.getElementById('cd-viz-regime-text').style.color=col;
+      document.getElementById('cd-stat-pa').textContent=res.pa_p0.toFixed(5);
+      document.getElementById('cd-stat-pch').textContent=res.pCH_p0.toFixed(5);
+      document.getElementById('cd-stat-pns').textContent=res.pNS_p0.toFixed(5);
+      document.getElementById('cd-stat-psj').textContent=res.pSJ_p0.toFixed(5);
+      // Regime interpretation
+      const cdInterpEl=document.getElementById('cd-regime-interpretation');
+      if(cdInterpEl){
+        const interpMap={
+          'No flow':'Ambient pressure equals or exceeds stagnation pressure. No steady flow is possible.',
+          'Fully subsonic':'Flow is entirely subsonic. The diverging section acts as a diffuser. Exit pressure equals ambient.',
+          'Just choked':'Throat reaches M = 1. The diverging section still decelerates flow subsonically. Further reducing pₐ will not increase mass flow.',
+          'Normal shock inside nozzle':'Throat is choked. A normal shock stands inside the diverging section, returning flow to subsonic before the exit.',
+          'Normal shock at exit':'Throat is choked. Fully supersonic flow through the divergent section; a normal shock sits exactly at the exit plane.',
+          'Overexpanded jet':'Fully supersonic internal flow. Exit pressure is below ambient — oblique shocks form outside the nozzle to compress the jet.',
+          'Perfectly expanded jet':'Design condition. Exit pressure exactly matches ambient. No external shocks or expansion fans.',
+          'Underexpanded jet':'Fully supersonic internal flow. Exit pressure exceeds ambient — Prandtl–Meyer expansion fans form outside the nozzle.'
+        };
+        cdInterpEl.textContent=interpMap[res.regime]||res.regime;
+      }
+
+      // Nozzle + charts
+      cdRenderNozzle(res,'cd-nozzle-svg');
+      cdRenderCharts(res,'cd-plot-pressure','cd-plot-mach');
+      cdPS.setRes(res,'cd-particle-canvas');
+
+      // Exit conditions — dark stat grid (no T0)
+      // Exit pressure: actual pressure at the exit plane from the solved distribution.
+      // pSJ_p0 is the design (perfectly expanded) pressure ratio — using it here was wrong
+      // for all regimes except the perfectly expanded case.
+      const pe = res.p_p0[res.p_p0.length - 1] * p0;
+      // Correct choked mass flow: mdot = p0·At·√(γ/(R·T0))·[2/(γ+1)]^[(γ+1)/(2(γ-1))]
+      // Equivalently evaluated at exit: p0·Ae·√(γ/(R·T0))·Me·[1+(γ-1)/2·Me²]^[-(γ+1)/(2(γ-1))]
+      // Both are identical for choked flow; using throat form here for simplicity.
+      const MeExit = res.M[res.M.length - 1];
+      // Piecewise mass flow (Priority 1 fix)
+      let mdot;
+      if (res.regime === 'No flow') {
+        mdot = 0;
+      } else if (res.regime === 'Fully subsonic') {
+        const MeExit = res.M[res.M.length - 1];
+        mdot = p0 * Ae * Math.sqrt(gamma / (R * T0)) * MeExit *
+          Math.pow(1 + 0.5*(gamma-1)*MeExit*MeExit, -(gamma+1)/(2*(gamma-1)));
+      } else {
+        // Choked throat formula (all other regimes)
+        mdot = p0 * At * Math.sqrt(gamma / (R * T0)) *
+          Math.pow(2/(gamma+1), (gamma+1)/(2*(gamma-1)));
+      }
+      const choked=!['No flow','Fully subsonic'].includes(res.regime);
+      const exitTiles=[
+        {label:'Area Ratio Aₑ/Aₜ',      value: res.AeAt.toFixed(4),                   color:CDV.blue},
+        {label:'Design Exit Mach',         value: res.Me_sup?res.Me_sup.toFixed(4):'—',  color:'#f4904a'},
+        {label:'Exit Pressure pₑ (Pa)',    value: pe.toFixed(1),                          color:CDV.green},
+        {label:'Mass Flow ṁ (kg/s)',       value: mdot.toFixed(5),                        color:CDV.green},
+        {label:'Throat Status',            value: (()=>{
+          if(res.regime==='No flow') return 'No flow';
+          if(res.regime==='Fully subsonic') return 'Subsonic';
+          if(res.regime==='Just choked') return 'Choked onset (Mₜ = 1)';
+          return 'Choked (Mₜ = 1)';
+        })(),   color: choked?CDV.green:(res.regime==='No flow'?CDV.subtle:CDV.muted)},
+        {label:'Regime',                   value: res.regime,                              color: col},
+      ];
+      document.getElementById('cd-outputs-grid').innerHTML=exitTiles.map(t=>`
+        <div class="cd-stat-tile">
+          <div class="cd-stat-label">${t.label}</div>
+          <div class="cd-stat-value" style="color:${t.color};font-size:0.88rem;">${t.value}</div>
+        </div>`).join('');
+    }
+
+    // ── Sweep tab (Nozzle Regimes page) ──
+    let _swLastRes=null;
+    function cdBuildRegimeTrack(res){
+      const{pSJ_p0:ps,pNS_p0:pn,pCH_p0:pc}=res;
+      const bands=[
+        {lo:0, hi:ps,col:CDV.blue,  label:'Underexpanded'},
+        {lo:ps,hi:pn,col:CDV.red,   label:'Overexpanded'},
+        {lo:pn,hi:pc,col:CDV.yellow,label:'NS inside'},
+        {lo:pc,hi:1.0,col:CDV.blue, label:'Subsonic'},
+      ];
+      const track=document.getElementById('sw-regime-track');
+      track.innerHTML='';
+      bands.forEach(b=>{
+        const w=(b.hi-b.lo)*100;if(w<=0)return;
+        const s=document.createElement('div');
+        s.style.cssText=`width:${w}%;height:100%;background:${b.col};opacity:0.65;`;
+        s.title=`${b.label}: ${b.lo.toFixed(3)}–${b.hi.toFixed(3)}`;
+        track.appendChild(s);
+      });
+    }
+
+    function onSweepRegimes(val){
+      const pa_p0=val/1000;
+      document.getElementById('sw-readout').textContent=pa_p0.toFixed(3);
+      document.getElementById('sw-track-needle').style.left=(pa_p0*100)+'%';
+      const p0   =parseFloat(document.getElementById('sw-p0').value)||300000;
+      const Ae   =parseFloat(document.getElementById('sw-Ae').value)||2.5;
+      const At   =parseFloat(document.getElementById('sw-At').value)||1.0;
+      const gamma=parseFloat(document.getElementById('sw-gamma').value)||1.4;
+      if(Ae<=At||At<=0||gamma<=1)return;
+      try{
+        const res=cdSolve(p0,pa_p0*p0,Ae,At,gamma);
+        _swLastRes=res;
+        const col=cdRegimeColor(res.regime);
+        document.getElementById('sw-regime-dot').style.background=col;
+        document.getElementById('sw-regime-text').textContent=res.regime;
+        document.getElementById('sw-regime-text').style.color=col;
+        cdRenderNozzle(res,'sw-nozzle-svg');
+        cdRenderCharts(res,'sw-plot-pressure','sw-plot-mach');
+        cdBuildRegimeTrack(res);
+        swPS.setRes(res,'sw-particle-canvas');
+      }catch(e){}
+    }
+
+    // Initialise sweep on page load with default geometry
+    window.addEventListener('DOMContentLoaded',()=>{
+      updateNormalLabel();
+      updateObliqueOptions();
+      // Prime sweep with default values
+      onSweepRegimes(667);
+    });
+  
+    // ══════════════════════════════════════════════════════════
+    // SECONDARY FEATURES
+    // ══════════════════════════════════════════════════════════
+
+    // S1 — Enter to compute (triggers first button on active page)
+    document.addEventListener('keydown', e => {
+      if (e.key !== 'Enter') return;
+      const active = document.querySelector('.page.active');
+      if (!active) return;
+      // find button closest to the focused element, fallback to first button
+      const focused = document.activeElement;
+      let btn = focused ? focused.closest('.card')?.querySelector('button') : null;
+      if (!btn) btn = active.querySelector('button:not(.secondary-btn)');
+      if (btn) btn.click();
+    });
+
+    // S2 — Copy Results helpers
+    function copyToClipboard(text) {
+      navigator.clipboard.writeText(text).catch(() => {
+        const ta = document.createElement('textarea');
+        ta.value = text; document.body.appendChild(ta);
+        ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+      });
+    }
+    function getVal(id) { const e = document.getElementById(id); return e ? e.textContent : '—'; }
+
+    function copyNormalResults() {
+      copyToClipboard(
+        'Normal Shock Results\n' +
+        `M1       = ${getVal('nr-M1')}\n` +
+        `M2       = ${getVal('nr-M2')}\n` +
+        `p2/p1    = ${getVal('nr-p')}\n` +
+        `rho2/rho1= ${getVal('nr-rho')}\n` +
+        `T2/T1    = ${getVal('nr-T')}\n` +
+        `p02/p01  = ${getVal('nr-p0')}`
+      );
+    }
+    function copyObliqueResults() {
+      copyToClipboard(
+        'Oblique Shock Results\n' +
+        `M1    = ${getVal('or-M1')}\n` +
+        `beta  = ${getVal('or-beta')}\n` +
+        `theta = ${getVal('or-theta')}\n` +
+        `M1n   = ${getVal('or-M1n')}\n` +
+        `M2    = ${getVal('or-M2')}\n` +
+        `p2/p1 = ${getVal('or-p')}\n` +
+        `T2/T1 = ${getVal('or-T')}\n` +
+        `p02/p01=${getVal('or-p0')}`
+      );
+    }
+    function copyRayleighResults() {
+      copyToClipboard(
+        'Rayleigh Flow Results\n' +
+        `p2/p1   = ${getVal('rr-p')}\n` +
+        `T2/T1   = ${getVal('rr-T')}\n` +
+        `rho2/rho1=${getVal('rr-rho')}\n` +
+        `T02/T01 = ${getVal('rr-T0')}\n` +
+        `p02/p01 = ${getVal('rr-p0')}\n` +
+        `q/h01   = ${getVal('rr-q')}`
+      );
+    }
+    function copyFannoResults() {
+      copyToClipboard(
+        'Fanno Flow Results\n' +
+        `Te/Ti   = ${getVal('fr-T')}\n` +
+        `pe/pi   = ${getVal('fr-p')}\n` +
+        `rhoe/rhoi=${getVal('fr-rho')}\n` +
+        `p0e/p0i = ${getVal('fr-p0')}\n` +
+        `4fL/Dh  = ${getVal('fr-fL')}`
+      );
+    }
+
+    // S3 — Reset Defaults
+    function resetNormalDefaults() {
+      document.getElementById('n-var').value = 'M1';
+      document.getElementById('n-val').value = '2.0';
+      document.getElementById('n-gamma').value = '1.4';
+      updateNormalLabel(); computeNormal();
+    }
+    function resetObliqueDefaults() {
+      document.getElementById('o-var1').value = 'M1';
+      document.getElementById('o-val1').value = '2.5';
+      document.getElementById('o-var2').value = 'theta';
+      document.getElementById('o-val2').value = '10.0';
+      document.getElementById('o-gamma').value = '1.4';
+      document.getElementById('o-shocktype').value = 'weak';
+      updateObliqueOptions(); computeOblique();
+    }
+    function resetRayleighDefaults() {
+      document.getElementById('r-M1').value = '0.5';
+      document.getElementById('r-M2').value = '0.8';
+      document.getElementById('r-gamma').value = '1.4';
+      computeRayleigh();
+    }
+    function resetFannoDefaults() {
+      document.getElementById('f-Mi').value = '0.5';
+      document.getElementById('f-Me').value = '0.8';
+      document.getElementById('f-gamma').value = '1.4';
+      computeFanno();
+    }
+
+    // S4 — Known-input tile highlighting for Normal Shock
+    // Called from computeNormal after results are set
+    function markKnownTile(varName) {
+      const map = { M1:'nr-M1', M2:'nr-M2', p:'nr-p', rho:'nr-rho', T:'nr-T', p0:'nr-p0' };
+      Object.entries(map).forEach(([k, id]) => {
+        const tile = document.getElementById(id)?.parentElement;
+        if (!tile) return;
+        if (k === varName) tile.classList.add('input-known');
+        else tile.classList.remove('input-known');
+      });
+    }
+
+
+    // ── C6: PM + CD Copy/Reset functions ──
+    function resetPMSingleDefaults() {
+      document.getElementById('pm-input-type').value = 'M';
+      document.getElementById('pm-input-val').value = '2.0';
+      document.getElementById('pm-gamma1').value = '1.4';
+      updatePMInputLabel(); computePMSingle();
+    }
+    function copyPMSingleResults() {
+      copyToClipboard(
+        'PM Function Results\n' +
+        `M       = ${getVal('pm1-M')}\n` +
+        `nu(M)   = ${getVal('pm1-nu')}\n` +
+        `mu      = ${getVal('pm1-mu')}\n` +
+        `p/p0    = ${getVal('pm1-p')}\n` +
+        `T/T0    = ${getVal('pm1-T')}\n` +
+        `theta_max=${getVal('pm1-tmax')}`
+      );
+    }
+    function resetPMExpansionDefaults() {
+      document.getElementById('pm-Mu').value = '2.0';
+      document.getElementById('pm-input2-type').value = 'theta';
+      document.getElementById('pm-input2-val').value = '10.0';
+      document.getElementById('pm-gamma2').value = '1.4';
+      updatePMInput2Label(); computePMExpansion();
+    }
+    function copyPMExpansionResults() {
+      copyToClipboard(
+        'PM Expansion Results\n' +
+        `Mu      = ${getVal('pm2-Mu')}\n` +
+        `Md      = ${getVal('pm2-Md')}\n` +
+        `theta   = ${getVal('pm2-theta')}\n` +
+        `pa/pu   = ${getVal('pm2-p')}\n` +
+        `Ta/Tu   = ${getVal('pm2-T')}\n` +
+        `rho_a/u = ${getVal('pm2-rho')}\n` +
+        `Va/Vu   = ${getVal('pm2-V')}`
+      );
+    }
+    function resetPMLimitsDefaults() {
+      document.getElementById('pm-Mlimit').value = '2.0';
+      document.getElementById('pm-gamma3').value = '1.4';
+      computePMLimits();
+    }
+    function copyPMLimitsResults() {
+      copyToClipboard(
+        'PM Limiting Values\n' +
+        `nu_inf  = ${getVal('pm3-nuinf')}\n` +
+        `nu(Mu)  = ${getVal('pm3-nuU')}\n` +
+        `theta_max=${getVal('pm3-tmax')}`
+      );
+    }
+    function resetCDDefaults() {
+      document.getElementById('cd-p0').value  = '300000';
+      document.getElementById('cd-T0').value  = '300';
+      document.getElementById('cd-At').value  = '1.0';
+      document.getElementById('cd-Ae').value  = '2.5';
+      document.getElementById('cd-pa').value  = '200000';
+      document.getElementById('cd-gamma').value = '1.4';
+      document.getElementById('cd-R').value   = '287';
+      runCDNozzle();
+    }
+    function copyCDResults() {
+      const regime = document.getElementById('cd-viz-regime-text')?.textContent || '—';
+      copyToClipboard(
+        'C-D Nozzle Results\n' +
+        `Regime  = ${regime}\n` +
+        `pa/p0   = ${getVal('cd-stat-pa')}\n` +
+        `pCH/p0  = ${getVal('cd-stat-pch')}\n` +
+        `pNS/p0  = ${getVal('cd-stat-pns')}\n` +
+        `pSJ/p0  = ${getVal('cd-stat-psj')}`
+      );
+    }
+
+</script>
+</body>
+</html>
